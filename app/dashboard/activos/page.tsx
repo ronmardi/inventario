@@ -153,7 +153,7 @@ export default async function ActivosPage({
         <form method="GET" className="flex flex-col md:flex-row flex-wrap gap-3 items-center w-full">
           
           {/* Búsqueda por Texto */}
-          <div className="relative flex-1 w-full min-w-[200px]">
+          <div className="relative flex-1 w-full min-w-50">
             <SearchIcon className="absolute left-3.5 top-3 h-5 w-5 text-gray-400" />
             <input
               type="text"
