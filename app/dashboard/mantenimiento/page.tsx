@@ -214,7 +214,7 @@ export default function MantenimientoPage() {
       
       {/* MODAL DE ALERTA PERSONALIZADO */}
       {alertData && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/30 dark:bg-black/70 backdrop-blur-md transition-all animate-fade-in">
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/30 dark:bg-black/70 backdrop-blur-md transition-all animate-fade-in">
           <div className="w-full max-w-md bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl rounded-3xl border border-white/80 dark:border-gray-700/60 p-6 shadow-2xl space-y-4 text-center">
             
             <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center border shadow-sm ${
@@ -275,7 +275,7 @@ export default function MantenimientoPage() {
 
       {/* Grid de Métricas usando GlassCard para limpieza */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-        <GlassCard className="!p-5 flex items-center">
+        <GlassCard className="p-5! flex items-center">
           <div className="p-3 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20 shrink-0">
             <WrenchIcon className="w-7 h-7" />
           </div>
@@ -289,7 +289,7 @@ export default function MantenimientoPage() {
           </div>
         </GlassCard>
 
-        <GlassCard className="!p-5 flex items-center">
+        <GlassCard className="p-5! flex items-center">
           <div className="p-3 rounded-xl bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 shrink-0">
             <CheckCircleIcon className="w-7 h-7" />
           </div>
@@ -303,7 +303,7 @@ export default function MantenimientoPage() {
           </div>
         </GlassCard>
 
-        <GlassCard className="!p-5 flex items-center">
+        <GlassCard className="p-5! flex items-center">
           <div className="p-3 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
             <CurrencyDollarIcon className="w-7 h-7" />
           </div>
