@@ -1,48 +1,83 @@
-import { createClient } from "@/utils/supabase/server";
-import { redirect, notFound } from "next/navigation";
-import Link from "next/link";
+"use client";
 
-export default async function DetalleActivoPage({
+import { createClient } from "@/utils/supabase/client";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useEffect, useState, use } from "react";
+
+interface AssetDetail {
+  id: string;
+  asset_tag: string;
+  serial_number: string | null;
+  name: string;
+  model: string | null;
+  status: string;
+  purchase_date: string | null;
+  notes: string | null;
+  created_at: string;
+  categories: { id: string; name: string } | { id: string; name: string }[] | null;
+  locations: { id: string; name: string; address: string | null } | { id: string; name: string; address: string | null }[] | null;
+}
+
+export default function DetalleActivoPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
-  const supabase = await createClient();
+  const { id } = use(params);
+  const router = useRouter();
+  const supabase = createClient();
 
-  // 1. Verificar sesión de usuario
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [asset, setAsset] = useState<AssetDetail | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  if (!user) {
-    redirect("/login");
+  useEffect(() => {
+    async function loadAsset() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("assets")
+        .select(
+          `
+          id,
+          asset_tag,
+          serial_number,
+          name,
+          model,
+          status,
+          purchase_date,
+          notes,
+          created_at,
+          categories ( id, name ),
+          locations ( id, name, address )
+        `
+        )
+        .eq("id", id)
+        .single();
+
+      if (error || !data) {
+        router.push("/dashboard/activos");
+      } else {
+        setAsset(data as unknown as AssetDetail);
+      }
+      setLoading(false);
+    }
+    loadAsset();
+  }, [id, supabase, router]);
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
   }
 
-  // 2. Consultar activo por ID asegurando pertenencia al cliente/tenant
-  const { data: asset, error } = await supabase
-    .from("assets")
-    .select(
-      `
-      id,
-      asset_tag,
-      serial_number,
-      name,
-      model,
-      status,
-      purchase_date,
-      notes,
-      created_at,
-      categories ( id, name ),
-      locations ( id, name, address )
-    `
-    )
-    .eq("id", id)
-    .single();
-
-  if (error || !asset) {
-    notFound();
-  }
+  if (!asset) return null;
 
   // Mapeo de nombres para categorías y ubicaciones
   const categoryName = Array.isArray(asset.categories)
@@ -116,7 +151,25 @@ export default async function DetalleActivoPage({
         </div>
 
         {/* Acciones principales */}
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href={`/dashboard/activos/${asset.id}/editar`}
+            className="inline-flex items-center px-4 py-2.5 rounded-xl font-bold text-sm text-gray-700 dark:text-gray-200 bg-white/60 dark:bg-gray-800/60 hover:bg-white dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-all shadow-sm"
+          >
+            <PencilIcon className="w-4 h-4 mr-2" />
+            Editar
+          </Link>
+          
+          <Link
+            href={`/dashboard/activos/${asset.id}/asignar`}
+            className={`inline-flex items-center justify-center px-4 py-2.5 rounded-xl font-bold text-sm text-white transition-all hover:scale-[1.02] active:scale-[0.98] ${
+              asset.status === "asignado"
+                ? "bg-purple-600/90 hover:bg-purple-600 shadow-md shadow-purple-500/20"
+                : "bg-green-600/90 hover:bg-green-600 shadow-md shadow-green-500/20"
+            }`}
+          >
+            {asset.status === "asignado" ? "Devolver Equipo 🔄" : "Asignar Equipo 📋"}
+          </Link>
           <PrintButton />
         </div>
       </div>
@@ -254,7 +307,7 @@ function PrintButton({ fullWidth }: { fullWidth?: boolean }) {
       }`}
     >
       <PrinterIcon className="w-5 h-5 mr-2" />
-      Imprimir Etiqueta QR
+      Imprimir Etiqueta
     </button>
   );
 }
@@ -272,6 +325,14 @@ function PrinterIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m11.318-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231a1.125 1.125 0 01-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-19.126 0C1.008 7.441.25 8.375.25 9.456v6.294A2.25 2.25 0 002.5 18h1.091" />
+    </svg>
+  );
+}
+
+function PencilIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
     </svg>
   );
 }
