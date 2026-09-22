@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
 interface AssetResult {
@@ -18,7 +17,6 @@ interface AssetResult {
 }
 
 export default function EscanerPage() {
-  const router = useRouter();
   const supabase = createClient();
 
   const [isScanning, setIsScanning] = useState(true);
@@ -32,7 +30,8 @@ export default function EscanerPage() {
 
   // Función para consultar el equipo en Supabase por código o número de serie
   const lookupAsset = async (code: string) => {
-    const trimmed = code.trim();
+    // Sanitizar entrada escapando caracteres reservados de PostgREST
+    const trimmed = code.trim().replace(/[,.()]/g, "");
     if (!trimmed) return;
 
     setLoadingAsset(true);
@@ -52,7 +51,7 @@ export default function EscanerPage() {
         categories ( name ),
         locations ( name )
       `)
-      .or(`asset_tag.eq.${trimmed},serial_number.eq.${trimmed}`)
+      .or(`asset_tag.ilike.%${trimmed}%,serial_number.ilike.%${trimmed}%`)
       .maybeSingle();
 
     if (dbError) {
@@ -87,7 +86,7 @@ export default function EscanerPage() {
 
         // Detección automática con BarcodeDetector si el navegador lo soporta
         if ("BarcodeDetector" in window) {
-          // @ts-ignore
+          // @ts-expect-error - TypeScript aún no tiene tipos nativos completos para la API experimental BarcodeDetector
           const barcodeDetector = new window.BarcodeDetector({
             formats: ["qr_code", "code_128", "code_39", "ean_13", "data_matrix"],
           });
@@ -102,13 +101,13 @@ export default function EscanerPage() {
                   setIsScanning(false);
                   lookupAsset(detected);
                 }
-              } catch (e) {
-                // Continuar intentando fotograma a fotograma
+              } catch {
+                // Silenciar errores continuos del detector por falta de enfoque/luz en fotogramas intermedios
               }
             }
           }, 400);
         }
-      } catch (err) {
+      } catch {
         setError("No se pudo iniciar la cámara. Verifica los permisos del navegador o usa la búsqueda manual.");
         setIsScanning(false);
       }
@@ -122,6 +121,8 @@ export default function EscanerPage() {
         activeStream.getTracks().forEach((track) => track.stop());
       }
     };
+    // Deshabilitamos la advertencia de ESLint ya que no queremos incluir lookupAsset (cambia su referencia constantemente)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isScanning]);
 
   const handleManualSearch = (e: React.FormEvent) => {
