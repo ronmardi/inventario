@@ -51,5 +51,5 @@ El sistema se compone de tablas interconectadas diseñadas para integridad refer
 
 ### 1. Clonar el repositorio
 ```bash
-git clone [https://github.com/ronmardi/inventario.git](https://github.com/tu-usuario/tu-repo.git)
+git clone [https://github.com/ronmardi/inventario.git](https://github.com/ronmardi/inventario.git)
 cd tu-repo
