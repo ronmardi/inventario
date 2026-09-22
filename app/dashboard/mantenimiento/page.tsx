@@ -104,7 +104,6 @@ export default function MantenimientoPage() {
 
     setIsSubmitting(true);
 
-    // 1. Crear log en maintenance_logs
     const { error: logError } = await supabase.from("maintenance_logs").insert({
       client_id: clientId,
       asset_id: selectedAssetId,
@@ -120,13 +119,11 @@ export default function MantenimientoPage() {
       return;
     }
 
-    // 2. Cambiar el estado del activo a 'en_reparacion'
     await supabase
       .from("assets")
       .update({ status: "en_reparacion", updated_at: new Date().toISOString() })
       .eq("id", selectedAssetId);
 
-    // Resetear form y recargar
     setSelectedAssetId("");
     setIssueDescription("");
     setEstimatedCost("");
@@ -142,7 +139,6 @@ export default function MantenimientoPage() {
 
     setIsSubmitting(true);
 
-    // 1. Actualizar log de mantenimiento con resolución y costo final
     const { error: logError } = await supabase
       .from("maintenance_logs")
       .update({
@@ -158,7 +154,6 @@ export default function MantenimientoPage() {
       return;
     }
 
-    // 2. Cambiar estado del activo
     await supabase
       .from("assets")
       .update({ status: returnToStatus, updated_at: new Date().toISOString() })
@@ -171,7 +166,6 @@ export default function MantenimientoPage() {
     loadData();
   };
 
-  // Métricas calculadas
   const activeLogs = logs.filter((l) => !l.completed_at);
   const completedLogs = logs.filter((l) => l.completed_at);
   const totalCost = logs.reduce((acc, log) => acc + (log.cost || 0), 0);
@@ -332,23 +326,24 @@ export default function MantenimientoPage() {
         </div>
       </div>
 
-      {/* MODAL: REPORTAR FALLA */}
+      {/* MODAL REDISEÑADO (LIQUID GLASS INTEGRADO) */}
       {isReportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-          <div className="w-full max-w-lg bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-gray-700/50 p-6 shadow-2xl space-y-5">
-            <h3 className="text-xl font-extrabold text-gray-900 dark:text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/25 dark:bg-black/60 backdrop-blur-md transition-all animate-fade-in">
+          <div className="w-full max-w-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-2xl rounded-3xl border border-white/80 dark:border-gray-700/60 p-7 shadow-[0_20px_50px_rgba(0,0,0,0.15)] space-y-5">
+            <h3 className="text-xl font-extrabold text-gray-900 dark:text-white drop-shadow-sm">
               Reportar Falla / Enviar a Mantenimiento 🛠️
             </h3>
+            
             <form onSubmit={handleCreateReport} className="space-y-4">
               <div>
-                <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1">
+                <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1.5">
                   Seleccionar Equipo *
                 </label>
                 <select
                   value={selectedAssetId}
                   onChange={(e) => setSelectedAssetId(e.target.value)}
                   required
-                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/70 border text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500/50"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/60 text-sm font-medium text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500/50 transition-all shadow-inner"
                 >
                   <option value="">Selecciona un equipo del inventario...</option>
                   {assets.map((a) => (
@@ -360,7 +355,7 @@ export default function MantenimientoPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1">
+                <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1.5">
                   Descripción del Problema / Falla *
                 </label>
                 <textarea
@@ -369,12 +364,12 @@ export default function MantenimientoPage() {
                   required
                   rows={3}
                   placeholder="Detalla el fallo (pantalla rota, no enciende, cambio de batería)..."
-                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/70 border text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500/50"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/60 text-sm font-medium text-gray-900 dark:text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-orange-500/50 transition-all shadow-inner"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1">
+                <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1.5">
                   Costo Estimado ($ CLP)
                 </label>
                 <input
@@ -382,7 +377,7 @@ export default function MantenimientoPage() {
                   value={estimatedCost}
                   onChange={(e) => setEstimatedCost(e.target.value)}
                   placeholder="Ej. 45000"
-                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/70 border text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500/50"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/60 text-sm font-medium text-gray-900 dark:text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-orange-500/50 transition-all shadow-inner"
                 />
               </div>
 
@@ -390,14 +385,14 @@ export default function MantenimientoPage() {
                 <button
                   type="button"
                   onClick={() => setIsReportModalOpen(false)}
-                  className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-800 hover:bg-gray-300"
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 bg-white/60 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/60 hover:bg-white dark:hover:bg-gray-700 transition-all"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-orange-600 hover:bg-orange-500 shadow-md shadow-orange-500/20 disabled:opacity-50"
+                  className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-orange-600/90 hover:bg-orange-600 shadow-md shadow-orange-500/20 backdrop-blur-sm transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
                 >
                   {isSubmitting ? "Guardando..." : "Ingresar Mantenimiento"}
                 </button>
@@ -407,16 +402,17 @@ export default function MantenimientoPage() {
         </div>
       )}
 
-      {/* MODAL: FINALIZAR MANTENIMIENTO */}
+      {/* MODAL FINALIZAR MANTENIMIENTO REDISEÑADO */}
       {selectedLogForResolve && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-          <div className="w-full max-w-lg bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-gray-700/50 p-6 shadow-2xl space-y-5">
-            <h3 className="text-xl font-extrabold text-gray-900 dark:text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/25 dark:bg-black/60 backdrop-blur-md transition-all animate-fade-in">
+          <div className="w-full max-w-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-2xl rounded-3xl border border-white/80 dark:border-gray-700/60 p-7 shadow-[0_20px_50px_rgba(0,0,0,0.15)] space-y-5">
+            <h3 className="text-xl font-extrabold text-gray-900 dark:text-white drop-shadow-sm">
               Finalizar Reparación de {selectedLogForResolve.assets?.name} ✅
             </h3>
+            
             <form onSubmit={handleResolveMaintenance} className="space-y-4">
               <div>
-                <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1">
+                <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1.5">
                   Notas de Solución / Reparación *
                 </label>
                 <textarea
@@ -425,12 +421,12 @@ export default function MantenimientoPage() {
                   required
                   rows={3}
                   placeholder="Detalla qué repuesto se cambió o qué trabajo técnico se realizó..."
-                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/70 border text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-green-500/50"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/60 text-sm font-medium text-gray-900 dark:text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-500/50 transition-all shadow-inner"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1">
+                <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1.5">
                   Costo Final Real ($ CLP)
                 </label>
                 <input
@@ -438,18 +434,18 @@ export default function MantenimientoPage() {
                   value={finalCost}
                   onChange={(e) => setFinalCost(e.target.value)}
                   placeholder="Ej. 50000"
-                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/70 border text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-green-500/50"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/60 text-sm font-medium text-gray-900 dark:text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-500/50 transition-all shadow-inner"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1">
+                <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1.5">
                   Estado Posterior del Equipo
                 </label>
                 <select
                   value={returnToStatus}
                   onChange={(e) => setReturnToStatus(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/70 border text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-green-500/50"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/60 text-sm font-medium text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-green-500/50 transition-all shadow-inner"
                 >
                   <option value="disponible">Queda Disponible en Bodega</option>
                   <option value="baja">Dar de Baja por Inoperativo</option>
@@ -460,14 +456,14 @@ export default function MantenimientoPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedLogForResolve(null)}
-                  className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-800 hover:bg-gray-300"
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 bg-white/60 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/60 hover:bg-white dark:hover:bg-gray-700 transition-all"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-green-600 hover:bg-green-500 shadow-md shadow-green-500/20 disabled:opacity-50"
+                  className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-green-600/90 hover:bg-green-600 shadow-md shadow-green-500/20 backdrop-blur-sm transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
                 >
                   {isSubmitting ? "Guardando..." : "Confirmar Resolución"}
                 </button>
