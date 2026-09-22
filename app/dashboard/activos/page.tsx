@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import ExportarButton from "./exportar-button";
 
 export default async function ActivosPage({
   searchParams,
@@ -92,7 +93,8 @@ export default async function ActivosPage({
             Gestiona los activos tecnológicos, asignaciones y estados de tu empresa.
           </p>
         </div>
-        <div>
+        <div className="flex flex-wrap items-center gap-3">
+          <ExportarButton />
           <Link
             href="/dashboard/activos/nuevo"
             className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl font-bold text-sm text-white bg-blue-600/90 hover:bg-blue-600 shadow-md shadow-blue-500/20 backdrop-blur-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
