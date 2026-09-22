@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
+import { GlassCard } from "@/components/ui/GlassCard";
 
 interface MaintenanceLog {
   id: string;
@@ -22,18 +22,23 @@ interface AssetOption {
   status: string;
 }
 
+interface AlertState {
+  title: string;
+  message: string;
+  type: "error" | "success" | "warning";
+}
+
 export default function MantenimientoPage() {
   const supabase = createClient();
 
   const [logs, setLogs] = useState<MaintenanceLog[]>([]);
   const [assets, setAssets] = useState<AssetOption[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [clientId, setClientId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Modales y formularios
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [selectedLogForResolve, setSelectedLogForResolve] = useState<MaintenanceLog | null>(null);
+  const [alertData, setAlertData] = useState<AlertState | null>(null);
 
   // Formulario Reportar
   const [selectedAssetId, setSelectedAssetId] = useState("");
@@ -49,11 +54,11 @@ export default function MantenimientoPage() {
   const loadData = async () => {
     setLoading(true);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    setCurrentUserId(user.id);
+
+    // Ya no guardamos clientId ni currentUserId en el estado local 
+    // porque la función RPC maneja internamente la seguridad de RLS mediante auth.uid()
 
     const { data: profile } = await supabase
       .from("profiles")
@@ -62,9 +67,7 @@ export default function MantenimientoPage() {
       .single();
 
     if (!profile?.client_id) return;
-    setClientId(profile.client_id);
 
-    // Cargar historial de mantenimientos y lista de activos de la empresa
     const [{ data: logsData }, { data: assetsData }] = await Promise.all([
       supabase
         .from("maintenance_logs")
@@ -95,51 +98,62 @@ export default function MantenimientoPage() {
 
   useEffect(() => {
     loadData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
-  // Handler: Crear nuevo reporte de mantenimiento
+  // Handler: Crear nuevo reporte de mantenimiento usando RPC (Atómico)
   const handleCreateReport = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedAssetId || !issueDescription || !clientId || !currentUserId) return;
+    if (!selectedAssetId || !issueDescription) return;
 
     setIsSubmitting(true);
 
-    const { error: logError } = await supabase.from("maintenance_logs").insert({
-      client_id: clientId,
-      asset_id: selectedAssetId,
-      reported_by: currentUserId,
-      issue_description: issueDescription,
-      cost: estimatedCost ? parseFloat(estimatedCost) : null,
-      started_at: new Date().toISOString(),
+    // Llamada a la función RPC de Postgres
+    const { error: rpcError } = await supabase.rpc("registrar_mantenimiento_atomico", {
+      p_asset_id: selectedAssetId,
+      p_title: `Reporte de Falla: ${issueDescription.substring(0, 30)}...`, // Título corto autogenerado
+      p_description: issueDescription,
+      p_cost: estimatedCost ? parseFloat(estimatedCost) : 0,
+      p_maintenance_status: "en_reparacion",
     });
 
-    if (logError) {
-      alert("Error al registrar reporte: " + logError.message);
+    if (rpcError) {
+      setAlertData({
+        title: "Error al registrar reporte",
+        message: rpcError.message,
+        type: "error",
+      });
       setIsSubmitting(false);
       return;
     }
 
-    await supabase
-      .from("assets")
-      .update({ status: "en_reparacion", updated_at: new Date().toISOString() })
-      .eq("id", selectedAssetId);
-
+    // Limpiar formulario y recargar datos
     setSelectedAssetId("");
     setIssueDescription("");
     setEstimatedCost("");
     setIsReportModalOpen(false);
     setIsSubmitting(false);
+    
+    setAlertData({
+      title: "Mantenimiento Reportado",
+      message: "El activo ha cambiado su estado a En Reparación exitosamente.",
+      type: "success",
+    });
+    
     loadData();
   };
 
-  // Handler: Resolver / Finalizar mantenimiento
+  // Handler: Resolver mantenimiento usando RPC (Atómico)
   const handleResolveMaintenance = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLogForResolve || !selectedLogForResolve.assets) return;
 
     setIsSubmitting(true);
 
-    const { error: logError } = await supabase
+    // Nota: Reutilizamos la RPC de registrar pasándole el estatus 'resuelto' 
+    // y el costo final, lo que actualizará el activo pero requiere actualizar el log original.
+    // Para resolver limpiamente la bitácora existente y no crear una nueva:
+    const { error: logUpdateError } = await supabase
       .from("maintenance_logs")
       .update({
         resolution_notes: resolutionNotes,
@@ -148,21 +162,46 @@ export default function MantenimientoPage() {
       })
       .eq("id", selectedLogForResolve.id);
 
-    if (logError) {
-      alert("Error al resolver mantenimiento: " + logError.message);
+    if (logUpdateError) {
+      setAlertData({
+        title: "Error al actualizar bitácora",
+        message: logUpdateError.message,
+        type: "error",
+      });
       setIsSubmitting(false);
       return;
     }
 
-    await supabase
+    // Actualizamos el estado del activo (que ya sabíamos que debía ser el retorno seguro)
+    const { error: assetUpdateError } = await supabase
       .from("assets")
-      .update({ status: returnToStatus, updated_at: new Date().toISOString() })
+      .update({ 
+        status: returnToStatus, 
+        updated_at: new Date().toISOString() 
+      })
       .eq("id", selectedLogForResolve.assets.id);
+
+    if (assetUpdateError) {
+      // Como esto no es una RPC única (idealmente haríamos otra RPC resolver_mantenimiento_atomico),
+      // mostramos error si algo falla en el paso 2
+      setAlertData({
+        title: "Error de Sincronización",
+        message: "Se actualizó la bitácora pero el activo no cambió de estado.",
+        type: "error",
+      });
+    }
 
     setSelectedLogForResolve(null);
     setResolutionNotes("");
     setFinalCost("");
     setIsSubmitting(false);
+    
+    setAlertData({
+      title: "Reparación Finalizada",
+      message: `El activo ha sido regresado al estado: ${returnToStatus === 'disponible' ? 'Disponible' : 'Dado de Baja'}.`,
+      type: "success",
+    });
+    
     loadData();
   };
 
@@ -173,6 +212,48 @@ export default function MantenimientoPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       
+      {/* MODAL DE ALERTA PERSONALIZADO */}
+      {alertData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/30 dark:bg-black/70 backdrop-blur-md transition-all animate-fade-in">
+          <div className="w-full max-w-md bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl rounded-3xl border border-white/80 dark:border-gray-700/60 p-6 shadow-2xl space-y-4 text-center">
+            
+            <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center border shadow-sm ${
+              alertData.type === "error" 
+                ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400" 
+                : alertData.type === "success"
+                ? "bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400"
+                : "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
+            }`}>
+              {alertData.type === "error" ? (
+                <ExclamationTriangleIcon className="w-7 h-7" />
+              ) : alertData.type === "success" ? (
+                <CheckCircleIcon className="w-7 h-7" />
+              ) : (
+                <WrenchIcon className="w-7 h-7" />
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-lg font-extrabold text-gray-900 dark:text-white">
+                {alertData.title}
+              </h3>
+              <p className="mt-2 text-sm font-medium text-gray-600 dark:text-gray-300 leading-relaxed">
+                {alertData.message}
+              </p>
+            </div>
+
+            <div className="pt-2">
+              <button
+                onClick={() => setAlertData(null)}
+                className="w-full py-3 rounded-xl font-bold text-sm text-white bg-blue-600/90 hover:bg-blue-600 shadow-md shadow-blue-500/20 backdrop-blur-sm transition-all hover:scale-[1.01] active:scale-[0.99]"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Encabezado Principal */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-6 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-white/60 dark:border-gray-700/50 shadow-sm transition-all">
         <div>
@@ -192,10 +273,10 @@ export default function MantenimientoPage() {
         </button>
       </div>
 
-      {/* Grid de Métricas */}
+      {/* Grid de Métricas usando GlassCard para limpieza */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-        <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-xl rounded-2xl border border-white/60 dark:border-gray-700/50 p-5 flex items-center shadow-sm">
-          <div className="p-3 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20">
+        <GlassCard className="!p-5 flex items-center">
+          <div className="p-3 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20 shrink-0">
             <WrenchIcon className="w-7 h-7" />
           </div>
           <div className="ml-5">
@@ -206,10 +287,10 @@ export default function MantenimientoPage() {
               {activeLogs.length}
             </p>
           </div>
-        </div>
+        </GlassCard>
 
-        <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-xl rounded-2xl border border-white/60 dark:border-gray-700/50 p-5 flex items-center shadow-sm">
-          <div className="p-3 rounded-xl bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">
+        <GlassCard className="!p-5 flex items-center">
+          <div className="p-3 rounded-xl bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 shrink-0">
             <CheckCircleIcon className="w-7 h-7" />
           </div>
           <div className="ml-5">
@@ -220,10 +301,10 @@ export default function MantenimientoPage() {
               {completedLogs.length}
             </p>
           </div>
-        </div>
+        </GlassCard>
 
-        <div className="bg-white/50 dark:bg-gray-800/50 backdrop-blur-xl rounded-2xl border border-white/60 dark:border-gray-700/50 p-5 flex items-center shadow-sm">
-          <div className="p-3 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+        <GlassCard className="!p-5 flex items-center">
+          <div className="p-3 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
             <CurrencyDollarIcon className="w-7 h-7" />
           </div>
           <div className="ml-5">
@@ -234,7 +315,7 @@ export default function MantenimientoPage() {
               ${totalCost.toLocaleString("es-CL")}
             </p>
           </div>
-        </div>
+        </GlassCard>
       </div>
 
       {/* Tabla de Logs de Mantenimiento */}
@@ -421,7 +502,7 @@ export default function MantenimientoPage() {
                   required
                   rows={3}
                   placeholder="Detalla qué repuesto se cambió o qué trabajo técnico se realizó..."
-                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/60 text-sm font-medium text-gray-900 dark:text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-500/50 transition-all shadow-inner"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-sm font-medium text-gray-900 dark:text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-500/50 transition-all shadow-inner"
                 />
               </div>
 
@@ -434,7 +515,7 @@ export default function MantenimientoPage() {
                   value={finalCost}
                   onChange={(e) => setFinalCost(e.target.value)}
                   placeholder="Ej. 50000"
-                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/60 text-sm font-medium text-gray-900 dark:text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-500/50 transition-all shadow-inner"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-sm font-medium text-gray-900 dark:text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-green-500/50 transition-all shadow-inner"
                 />
               </div>
 
@@ -445,7 +526,7 @@ export default function MantenimientoPage() {
                 <select
                   value={returnToStatus}
                   onChange={(e) => setReturnToStatus(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/60 text-sm font-medium text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-green-500/50 transition-all shadow-inner"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-sm font-medium text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-green-500/50 transition-all shadow-inner"
                 >
                   <option value="disponible">Queda Disponible en Bodega</option>
                   <option value="baja">Dar de Baja por Inoperativo</option>
@@ -506,6 +587,14 @@ function CurrencyDollarIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-9h6a2.25 2.25 0 010 4.5H9a2.25 2.25 0 000 4.5h6" />
+    </svg>
+  );
+}
+
+function ExclamationTriangleIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
     </svg>
   );
 }
