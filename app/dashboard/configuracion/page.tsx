@@ -44,14 +44,16 @@ export default function ConfiguracionPage() {
       return;
     }
 
+    // 🔴 SEGURIDAD: Obtener también el rol del usuario
     const { data: profile } = await supabase
       .from("profiles")
-      .select("client_id")
+      .select("client_id, role") // <-- Agregar role
       .eq("id", user.id)
       .single();
 
-    if (!profile?.client_id) {
-      router.push("/login");
+    // 🔴 SEGURIDAD: Redirigir si no es admin o técnico
+    if (!profile?.client_id || (profile.role !== "superadmin" && profile.role !== "it_technician")) {
+      router.push("/dashboard");
       return;
     }
     
@@ -69,6 +71,7 @@ export default function ConfiguracionPage() {
 
   useEffect(() => {
     loadData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, router]);
 
   // CATEGORÍAS: Crear, Editar, Eliminar
