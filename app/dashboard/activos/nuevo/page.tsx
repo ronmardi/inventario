@@ -25,7 +25,6 @@ export default function NuevoActivoPage() {
   // Estados para imagen y escáner
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [scanTargetField, setScanTargetField] = useState<"serial" | "tag">("serial");
   const [isSaving, setIsSaving] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -49,7 +48,7 @@ export default function NuevoActivoPage() {
     const catName = selectedCat?.name.toLowerCase() || "";
     
     let prefix = "EQ";
-    if (catName.includes("mouse") || catName.includes("periferico") || catName.includes("teclado")) {
+    if (catName.includes("mouse") || catName.includes("periferico") || catName.includes("teclado") || catName.includes("kit")) {
       prefix = "PER";
     } else if (catName.includes("laptop") || catName.includes("notebook")) {
       prefix = "LAP";
@@ -72,9 +71,8 @@ export default function NuevoActivoPage() {
     }
   };
 
-  // Activar escáner de código de barras
-  const startScanner = async (target: "serial" | "tag") => {
-    setScanTargetField(target);
+  // Activar escáner de código de barras para el número de serie
+  const startScanner = async () => {
     setIsScanning(true);
 
     try {
@@ -85,7 +83,6 @@ export default function NuevoActivoPage() {
         videoRef.current.srcObject = stream;
       }
 
-      // Si el navegador soporta el BarcodeDetector nativo
       if ("BarcodeDetector" in window) {
         // @ts-ignore
         const barcodeDetector = new window.BarcodeDetector({
@@ -97,10 +94,7 @@ export default function NuevoActivoPage() {
             try {
               const barcodes = await barcodeDetector.detect(videoRef.current);
               if (barcodes.length > 0) {
-                const scannedValue = barcodes[0].rawValue;
-                if (target === "serial") setSerialNumber(scannedValue);
-                if (target === "tag") setAssetTag(scannedValue);
-                
+                setSerialNumber(barcodes[0].rawValue);
                 stopScanner(stream, interval);
               }
             } catch (err) {
@@ -110,7 +104,7 @@ export default function NuevoActivoPage() {
         }, 500);
       }
     } catch (err) {
-      alert("No se pudo acceder a la cámara o el navegador no soporta el detector nativo.");
+      alert("No se pudo acceder a la cámara o el navegador no soporta la detección automática.");
       setIsScanning(false);
     }
   };
@@ -170,13 +164,13 @@ export default function NuevoActivoPage() {
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md p-4">
           <div className="relative w-full max-w-md bg-gray-900 rounded-3xl overflow-hidden border border-gray-700 p-4 text-center">
             <h3 className="text-white font-bold text-lg mb-2">
-              Escaneando {scanTargetField === "serial" ? "Número de Serie" : "Etiqueta"}
+              Escaneando Número de Serie
             </h3>
-            <p className="text-xs text-gray-400 mb-4">Apunta con la cámara al código de barras o QR en el producto o caja</p>
+            <p className="text-xs text-gray-400 mb-4">Apunta con la cámara al código de barras o S/N del producto</p>
             <video ref={videoRef} autoPlay playsInline className="w-full h-64 object-cover rounded-2xl border border-gray-700" />
             <button
               onClick={() => stopScanner()}
-              className="mt-4 px-6 py-2.5 rounded-xl bg-red-600 text-white font-bold text-sm hover:bg-red-500 transition-all"
+              className="mt-4 px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm transition-all"
             >
               Cancelar Escaneo
             </button>
@@ -185,7 +179,7 @@ export default function NuevoActivoPage() {
       )}
 
       {/* Encabezado */}
-      <div className="flex items-center justify-between p-6 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-white/60 dark:border-gray-700/50 shadow-sm">
+      <div className="flex items-center justify-between p-6 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-white/60 dark:border-gray-700/50 shadow-sm transition-all">
         <div>
           <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white sm:text-3xl">
             Registrar Activo / Periférico 📦
@@ -203,22 +197,22 @@ export default function NuevoActivoPage() {
       </div>
 
       {/* Formulario Liquid Glass */}
-      <form onSubmit={handleSubmit} className="p-8 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-gray-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] space-y-6">
+      <form onSubmit={handleSubmit} className="p-8 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-gray-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] space-y-6 transition-all">
         
-        {/* Subida de Fotografía del Equipo */}
+        {/* Subida de Fotografía con Ícono SVG */}
         <div>
           <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
             Fotografía del Producto / Caja
           </label>
           <div className="flex items-center space-x-6">
-            <div className="h-28 w-28 rounded-2xl bg-white/60 dark:bg-gray-800/60 border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center overflow-hidden shadow-inner">
+            <div className="h-28 w-28 rounded-2xl bg-white/60 dark:bg-gray-800/60 border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center overflow-hidden shadow-inner backdrop-blur-md">
               {imagePreview ? (
                 <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
               ) : (
-                <span className="text-3xl">📷</span>
+                <CameraIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
               )}
             </div>
-            <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-white/80 dark:bg-gray-800/80 border border-white/60 dark:border-gray-600/60 text-sm font-bold text-gray-800 dark:text-gray-200 shadow-sm hover:bg-white transition-all">
+            <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-white/80 dark:bg-gray-800/80 border border-white/60 dark:border-gray-600/60 text-sm font-bold text-gray-800 dark:text-gray-200 shadow-sm hover:bg-white dark:hover:bg-gray-700 transition-all">
               Cargar Foto
               <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
             </label>
@@ -227,7 +221,7 @@ export default function NuevoActivoPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           
-          {/* Selector de Categoría PRIMERO para adaptar el prefijo */}
+          {/* Categoría */}
           <div>
             <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
               Categoría
@@ -235,7 +229,7 @@ export default function NuevoActivoPage() {
             <select
               value={categoryId}
               onChange={(e) => handleCategoryChange(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 text-sm outline-none"
+              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 text-sm outline-none transition-all"
             >
               <option value="">Seleccionar Categoría...</option>
               {categories.map((cat) => (
@@ -244,28 +238,18 @@ export default function NuevoActivoPage() {
             </select>
           </div>
 
-          {/* Etiqueta ID */}
+          {/* Etiqueta ID (Sin botón de escáner innecesario) */}
           <div>
             <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
               Etiqueta ID / Código
             </label>
-            <div className="flex space-x-2">
-              <input
-                type="text"
-                value={assetTag}
-                onChange={(e) => setAssetTag(e.target.value)}
-                required
-                className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 font-mono font-bold text-blue-600 dark:text-blue-400 text-sm outline-none"
-              />
-              <button
-                type="button"
-                onClick={() => startScanner("tag")}
-                title="Escanear Código de Barras"
-                className="px-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all flex items-center justify-center"
-              >
-                📷
-              </button>
-            </div>
+            <input
+              type="text"
+              value={assetTag}
+              onChange={(e) => setAssetTag(e.target.value)}
+              required
+              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 font-mono font-bold text-blue-600 dark:text-blue-400 text-sm outline-none transition-all focus:ring-2 focus:ring-blue-500/50"
+            />
           </div>
 
           {/* Nombre */}
@@ -279,7 +263,7 @@ export default function NuevoActivoPage() {
               onChange={(e) => setName(e.target.value)}
               required
               placeholder="Ej. Mouse Inalámbrico HP / Notebook Dell"
-              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none"
+              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all focus:ring-2 focus:ring-blue-500/50"
             />
           </div>
 
@@ -293,11 +277,11 @@ export default function NuevoActivoPage() {
               value={model}
               onChange={(e) => setModel(e.target.value)}
               placeholder="Ej. Logitech MX Master 3S"
-              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none"
+              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all focus:ring-2 focus:ring-blue-500/50"
             />
           </div>
 
-          {/* Número de Serie + Escáner directo */}
+          {/* Número de Serie + Botón SVG estilizado */}
           <div>
             <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
               Número de Serie (S/N)
@@ -308,15 +292,15 @@ export default function NuevoActivoPage() {
                 value={serialNumber}
                 onChange={(e) => setSerialNumber(e.target.value)}
                 placeholder="Ej. S/N grabado en la caja o producto"
-                className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white font-mono text-sm outline-none"
+                className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white font-mono text-sm outline-none transition-all focus:ring-2 focus:ring-blue-500/50"
               />
               <button
                 type="button"
-                onClick={() => startScanner("serial")}
+                onClick={startScanner}
                 title="Escanear Código de Barras de la caja"
-                className="px-3 bg-purple-600 text-white rounded-xl hover:bg-purple-500 transition-all flex items-center justify-center"
+                className="px-3.5 py-3 bg-blue-600/90 hover:bg-blue-600 text-white rounded-xl shadow-md shadow-blue-500/20 backdrop-blur-sm transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center shrink-0"
               >
-                📷
+                <BarcodeScanIcon className="w-5 h-5" />
               </button>
             </div>
           </div>
@@ -329,7 +313,7 @@ export default function NuevoActivoPage() {
             <select
               value={locationId}
               onChange={(e) => setLocationId(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none"
+              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all focus:ring-2 focus:ring-blue-500/50"
             >
               <option value="">Seleccionar Ubicación...</option>
               {locations.map((loc) => (
@@ -346,7 +330,7 @@ export default function NuevoActivoPage() {
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none"
+              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all focus:ring-2 focus:ring-blue-500/50"
             >
               <option value="disponible">Disponible</option>
               <option value="asignado">Asignado</option>
@@ -364,7 +348,7 @@ export default function NuevoActivoPage() {
               type="date"
               value={purchaseDate}
               onChange={(e) => setPurchaseDate(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none"
+              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all focus:ring-2 focus:ring-blue-500/50"
             />
           </div>
         </div>
@@ -379,7 +363,7 @@ export default function NuevoActivoPage() {
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
             placeholder="Detalles sobre garantía, estado del cable, o si viene en kit..."
-            className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none"
+            className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all focus:ring-2 focus:ring-blue-500/50"
           />
         </div>
 
@@ -401,5 +385,23 @@ export default function NuevoActivoPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+// Iconos SVG estilizados
+function CameraIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574v9.176A2.25 2.25 0 004.5 21h15a2.25 2.25 0 002.25-2.25V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+    </svg>
+  );
+}
+
+function BarcodeScanIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5zM15 15h3m-3 3h3m-6-3h.008v.008H12V15zm0 3h.008v.008H12V18z" />
+    </svg>
   );
 }
