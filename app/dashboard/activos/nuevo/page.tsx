@@ -17,6 +17,12 @@ interface Location {
   name: string;
 }
 
+interface AlertState {
+  title: string;
+  message: string;
+  type?: "warning" | "error" | "info";
+}
+
 export default function NuevoActivoPage() {
   const router = useRouter();
   const supabase = createClient();
@@ -35,16 +41,19 @@ export default function NuevoActivoPage() {
   const [purchaseDate, setPurchaseDate] = useState("");
   const [notes, setNotes] = useState("");
   
-  // Estados para imagen y escáner
+  // Estados para imagen, escáner y guardado
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
+  // Modal de Alerta Personalizado (Reemplaza a alert())
+  const [alertData, setAlertData] = useState<AlertState | null>(null);
+  
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
-    // FIX ESLINT: Inicializamos la etiqueta de manera segura (pureza de React)
+    // Inicializar etiqueta de ID de forma segura
     setAssetTag(`EQ-${Math.floor(1000 + Math.random() * 9000)}`);
 
     async function loadInitialData() {
@@ -61,8 +70,12 @@ export default function NuevoActivoPage() {
         .single();
 
       if (!profile?.client_id) {
-        alert("Error: No se detectó la empresa asociada a este usuario.");
-        router.push("/dashboard");
+        setAlertData({
+          title: "Empresa No Encontrada",
+          message: "No se detectó la empresa asociada a este usuario. Serás redirigido.",
+          type: "error",
+        });
+        setTimeout(() => router.push("/dashboard"), 2500);
         return;
       }
       setClientId(profile.client_id);
@@ -97,7 +110,6 @@ export default function NuevoActivoPage() {
     setAssetTag(`${prefix}-${Math.floor(1000 + Math.random() * 9000)}`);
   };
 
-  // Manejo de carga de imágenes local (previa antes de subir)
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -110,7 +122,7 @@ export default function NuevoActivoPage() {
     }
   };
 
-  // Activar escáner de código de barras para el número de serie
+  // Activar escáner de código de barras
   const startScanner = async () => {
     setIsScanning(true);
 
@@ -123,7 +135,7 @@ export default function NuevoActivoPage() {
       }
 
       if ("BarcodeDetector" in window) {
-        // @ts-expect-error - TypeScript aún no tiene tipos nativos completos para la API experimental BarcodeDetector
+        // @ts-expect-error - BarcodeDetector API experimental
         const barcodeDetector = new window.BarcodeDetector({
           formats: ["code_128", "code_39", "ean_13", "qr_code", "data_matrix"],
         });
@@ -143,8 +155,13 @@ export default function NuevoActivoPage() {
         }, 500);
       }
     } catch {
-      alert("No se pudo acceder a la cámara o el navegador no soporta la detección automática.");
+      // 🟢 AHORA SE MUESTRA EN UN MODAL ELEGANTE EN LUGAR DEL ALERT NATIVO
       setIsScanning(false);
+      setAlertData({
+        title: "Acceso a Cámara Restringido 📷",
+        message: "No se pudo acceder a la cámara o el navegador no soporta la detección automática. Puedes ingresar el número de serie manualmente.",
+        type: "warning",
+      });
     }
   };
 
@@ -160,9 +177,12 @@ export default function NuevoActivoPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // FIX BUG: Asegurar return temprano sin colgar el botón si falla el clientId
     if (!clientId) {
-      alert("Error crítico: Falta el ID del cliente. Recarga la página.");
+      setAlertData({
+        title: "Error de Sesión",
+        message: "Falta el ID del cliente. Por favor recarga la página.",
+        type: "error",
+      });
       return;
     }
     
@@ -171,13 +191,12 @@ export default function NuevoActivoPage() {
     try {
       let finalImageUrl = null;
 
-      // 1. Subida real de la foto a Supabase Storage
       if (imageFile) {
         const fileExt = imageFile.name.split(".").pop();
         const fileName = `${clientId}-${Date.now()}.${fileExt}`;
 
         const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("assets") // EL BUCKET SE DEBE LLAMAR 'assets'
+          .from("assets")
           .upload(fileName, imageFile, { upsert: true });
 
         if (uploadError) throw uploadError;
@@ -190,7 +209,6 @@ export default function NuevoActivoPage() {
         }
       }
 
-      // 2. Inserción del registro completo en BD
       const { error: insertError } = await supabase.from("assets").insert({
         client_id: clientId,
         asset_tag: assetTag,
@@ -202,7 +220,7 @@ export default function NuevoActivoPage() {
         status,
         purchase_date: purchaseDate || null,
         notes,
-        image_url: finalImageUrl, // Nueva columna requerida en la tabla
+        image_url: finalImageUrl,
       });
 
       if (insertError) throw insertError;
@@ -212,9 +230,12 @@ export default function NuevoActivoPage() {
       
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Ocurrió un error inesperado al guardar el activo.";
-      alert("Error al guardar: " + errorMessage);
+      setAlertData({
+        title: "Error al Guardar Activo ⚠️",
+        message: errorMessage,
+        type: "error",
+      });
     } finally {
-      // FIX BUG: Siempre liberamos el botón, haya error o éxito
       setIsSaving(false);
     }
   };
@@ -222,6 +243,40 @@ export default function NuevoActivoPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       
+      {/* MODAL DE ALERTA PERSONALIZADO (LIQUID GLASS) */}
+      {alertData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 dark:bg-black/70 backdrop-blur-md transition-all animate-fade-in">
+          <div className="w-full max-w-md bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl rounded-3xl border border-white/80 dark:border-gray-700/60 p-6 shadow-2xl space-y-4 text-center">
+            
+            <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center border shadow-sm ${
+              alertData.type === "error" 
+                ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400" 
+                : "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
+            }`}>
+              <ExclamationTriangleIcon className="w-7 h-7" />
+            </div>
+
+            <div>
+              <h3 className="text-lg font-extrabold text-gray-900 dark:text-white">
+                {alertData.title}
+              </h3>
+              <p className="mt-2 text-xs font-medium text-gray-600 dark:text-gray-300 leading-relaxed">
+                {alertData.message}
+              </p>
+            </div>
+
+            <div className="pt-2">
+              <button
+                onClick={() => setAlertData(null)}
+                className="w-full py-3 rounded-xl font-bold text-sm text-white bg-blue-600/90 hover:bg-blue-600 shadow-md shadow-blue-500/20 backdrop-blur-sm transition-all hover:scale-[1.01] active:scale-[0.99]"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal del Escáner de Código de Barras */}
       {isScanning && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md p-4">
@@ -348,7 +403,7 @@ export default function NuevoActivoPage() {
               />
             </div>
 
-            {/* Número de Serie + Botón SVG estilizado */}
+            {/* Número de Serie */}
             <div>
               <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Número de Serie (S/N)
@@ -456,7 +511,7 @@ export default function NuevoActivoPage() {
   );
 }
 
-// Iconos SVG estilizados
+// Iconos SVG
 function CameraIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
@@ -470,6 +525,14 @@ function BarcodeScanIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5zM15 15h3m-3 3h3m-6-3h.008v.008H12V15zm0 3h.008v.008H12V18z" />
+    </svg>
+  );
+}
+
+function ExclamationTriangleIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
     </svg>
   );
 }
