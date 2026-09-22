@@ -3,16 +3,29 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/utils/supabase/client";
+import { GlassCard } from "@/components/ui/GlassCard";
+
+interface Category {
+  id: string;
+  name: string;
+}
+
+interface Location {
+  id: string;
+  name: string;
+}
 
 export default function NuevoActivoPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
-  const [locations, setLocations] = useState<{ id: string; name: string }[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [clientId, setClientId] = useState<string | null>(null);
   
-  const [assetTag, setAssetTag] = useState(`EQ-${Math.floor(1000 + Math.random() * 9000)}`);
+  const [assetTag, setAssetTag] = useState("");
   const [name, setName] = useState("");
   const [model, setModel] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
@@ -23,6 +36,7 @@ export default function NuevoActivoPage() {
   const [notes, setNotes] = useState("");
   
   // Estados para imagen y escáner
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -30,16 +44,40 @@ export default function NuevoActivoPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
+    // FIX ESLINT: Inicializamos la etiqueta de manera segura (pureza de React)
+    setAssetTag(`EQ-${Math.floor(1000 + Math.random() * 9000)}`);
+
     async function loadInitialData() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("client_id")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile?.client_id) {
+        alert("Error: No se detectó la empresa asociada a este usuario.");
+        router.push("/dashboard");
+        return;
+      }
+      setClientId(profile.client_id);
+
       const [{ data: cats }, { data: locs }] = await Promise.all([
         supabase.from("categories").select("id, name").order("name"),
         supabase.from("locations").select("id, name").order("name"),
       ]);
+      
       if (cats) setCategories(cats);
       if (locs) setLocations(locs);
     }
+    
     loadInitialData();
-  }, [supabase]);
+  }, [supabase, router]);
 
   // Cambiar prefijo según la categoría seleccionada
   const handleCategoryChange = (catId: string) => {
@@ -59,10 +97,11 @@ export default function NuevoActivoPage() {
     setAssetTag(`${prefix}-${Math.floor(1000 + Math.random() * 9000)}`);
   };
 
-  // Manejo de carga de imágenes
+  // Manejo de carga de imágenes local (previa antes de subir)
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setImageFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
@@ -84,7 +123,7 @@ export default function NuevoActivoPage() {
       }
 
       if ("BarcodeDetector" in window) {
-        // @ts-ignore
+        // @ts-expect-error - TypeScript aún no tiene tipos nativos completos para la API experimental BarcodeDetector
         const barcodeDetector = new window.BarcodeDetector({
           formats: ["code_128", "code_39", "ean_13", "qr_code", "data_matrix"],
         });
@@ -103,7 +142,7 @@ export default function NuevoActivoPage() {
           }
         }, 500);
       }
-    } catch (err) {
+    } catch {
       alert("No se pudo acceder a la cámara o el navegador no soporta la detección automática.");
       setIsScanning(false);
     }
@@ -120,40 +159,64 @@ export default function NuevoActivoPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSaving(true);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("client_id")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile?.client_id) return;
-
-    const { error } = await supabase.from("assets").insert({
-      client_id: profile.client_id,
-      asset_tag: assetTag,
-      name,
-      model: model || null,
-      serial_number: serialNumber || null,
-      category_id: categoryId || null,
-      location_id: locationId || null,
-      status,
-      purchase_date: purchaseDate || null,
-      notes,
-    });
-
-    if (error) {
-      alert("Error al guardar el activo: " + error.message);
-      setIsSaving(false);
+    
+    // FIX BUG: Asegurar return temprano sin colgar el botón si falla el clientId
+    if (!clientId) {
+      alert("Error crítico: Falta el ID del cliente. Recarga la página.");
       return;
     }
+    
+    setIsSaving(true);
 
-    router.push("/dashboard/activos");
-    router.refresh();
+    try {
+      let finalImageUrl = null;
+
+      // 1. Subida real de la foto a Supabase Storage
+      if (imageFile) {
+        const fileExt = imageFile.name.split(".").pop();
+        const fileName = `${clientId}-${Date.now()}.${fileExt}`;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("assets") // EL BUCKET SE DEBE LLAMAR 'assets'
+          .upload(fileName, imageFile, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        if (uploadData) {
+          const { data: publicUrlData } = supabase.storage
+            .from("assets")
+            .getPublicUrl(fileName);
+          finalImageUrl = publicUrlData.publicUrl;
+        }
+      }
+
+      // 2. Inserción del registro completo en BD
+      const { error: insertError } = await supabase.from("assets").insert({
+        client_id: clientId,
+        asset_tag: assetTag,
+        name,
+        model: model || null,
+        serial_number: serialNumber || null,
+        category_id: categoryId || null,
+        location_id: locationId || null,
+        status,
+        purchase_date: purchaseDate || null,
+        notes,
+        image_url: finalImageUrl, // Nueva columna requerida en la tabla
+      });
+
+      if (insertError) throw insertError;
+
+      router.push("/dashboard/activos");
+      router.refresh();
+      
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Ocurrió un error inesperado al guardar el activo.";
+      alert("Error al guardar: " + errorMessage);
+    } finally {
+      // FIX BUG: Siempre liberamos el botón, haya error o éxito
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -196,178 +259,183 @@ export default function NuevoActivoPage() {
         </Link>
       </div>
 
-      {/* Formulario Liquid Glass */}
-      <form onSubmit={handleSubmit} className="p-8 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-gray-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] space-y-6 transition-all">
+      <form onSubmit={handleSubmit} className="space-y-6">
         
-        {/* Subida de Fotografía con Ícono SVG */}
-        <div>
-          <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
-            Fotografía del Producto / Caja
-          </label>
+        {/* Fotografía del Equipo */}
+        <GlassCard title="Fotografía del Producto / Caja (Opcional)">
           <div className="flex items-center space-x-6">
-            <div className="h-28 w-28 rounded-2xl bg-white/60 dark:bg-gray-800/60 border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center overflow-hidden shadow-inner backdrop-blur-md">
+            <div className="relative h-28 w-28 rounded-2xl bg-white/60 dark:bg-gray-800/60 border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center overflow-hidden shadow-inner backdrop-blur-md">
               {imagePreview ? (
-                <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
+                <Image 
+                  src={imagePreview} 
+                  alt="Preview" 
+                  fill 
+                  className="object-cover" 
+                  unoptimized 
+                />
               ) : (
                 <CameraIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
               )}
             </div>
-            <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-white/80 dark:bg-gray-800/80 border border-white/60 dark:border-gray-600/60 text-sm font-bold text-gray-800 dark:text-gray-200 shadow-sm hover:bg-white dark:hover:bg-gray-700 transition-all">
+            <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-blue-600/90 border border-white/60 dark:border-gray-600/60 text-sm font-bold text-white shadow-sm hover:bg-blue-600 transition-all">
               Cargar Foto
               <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
             </label>
           </div>
-        </div>
+        </GlassCard>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          {/* Categoría */}
-          <div>
-            <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
-              Categoría
-            </label>
-            <select
-              value={categoryId}
-              onChange={(e) => handleCategoryChange(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 text-sm outline-none transition-all"
-            >
-              <option value="">Seleccionar Categoría...</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
-          </div>
+        {/* Datos Principales */}
+        <GlassCard>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* Categoría */}
+            <div>
+              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+                Categoría
+              </label>
+              <select
+                value={categoryId}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 text-sm outline-none transition-all shadow-inner"
+              >
+                <option value="">Seleccionar Categoría...</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            </div>
 
-          {/* Etiqueta ID (Sin botón de escáner innecesario) */}
-          <div>
-            <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
-              Etiqueta ID / Código
-            </label>
-            <input
-              type="text"
-              value={assetTag}
-              onChange={(e) => setAssetTag(e.target.value)}
-              required
-              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 font-mono font-bold text-blue-600 dark:text-blue-400 text-sm outline-none transition-all focus:ring-2 focus:ring-blue-500/50"
-            />
-          </div>
-
-          {/* Nombre */}
-          <div>
-            <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
-              Nombre Corto *
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              placeholder="Ej. Mouse Inalámbrico HP / Notebook Dell"
-              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all focus:ring-2 focus:ring-blue-500/50"
-            />
-          </div>
-
-          {/* Modelo */}
-          <div>
-            <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
-              Marca / Modelo
-            </label>
-            <input
-              type="text"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="Ej. Logitech MX Master 3S"
-              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all focus:ring-2 focus:ring-blue-500/50"
-            />
-          </div>
-
-          {/* Número de Serie + Botón SVG estilizado */}
-          <div>
-            <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
-              Número de Serie (S/N)
-            </label>
-            <div className="flex space-x-2">
+            {/* Etiqueta ID */}
+            <div>
+              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+                Etiqueta ID / Código
+              </label>
               <input
                 type="text"
-                value={serialNumber}
-                onChange={(e) => setSerialNumber(e.target.value)}
-                placeholder="Ej. S/N grabado en la caja o producto"
-                className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white font-mono text-sm outline-none transition-all focus:ring-2 focus:ring-blue-500/50"
+                value={assetTag}
+                onChange={(e) => setAssetTag(e.target.value)}
+                required
+                className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 font-mono font-bold text-blue-600 dark:text-blue-400 text-sm outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/50"
               />
-              <button
-                type="button"
-                onClick={startScanner}
-                title="Escanear Código de Barras de la caja"
-                className="px-3.5 py-3 bg-blue-600/90 hover:bg-blue-600 text-white rounded-xl shadow-md shadow-blue-500/20 backdrop-blur-sm transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center shrink-0"
+            </div>
+
+            {/* Nombre */}
+            <div>
+              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+                Nombre Corto *
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                placeholder="Ej. Mouse Inalámbrico HP / Notebook Dell"
+                className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/50"
+              />
+            </div>
+
+            {/* Modelo */}
+            <div>
+              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+                Marca / Modelo
+              </label>
+              <input
+                type="text"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="Ej. Logitech MX Master 3S"
+                className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/50"
+              />
+            </div>
+
+            {/* Número de Serie + Botón SVG estilizado */}
+            <div>
+              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+                Número de Serie (S/N)
+              </label>
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={serialNumber}
+                  onChange={(e) => setSerialNumber(e.target.value)}
+                  placeholder="Ej. S/N de fábrica"
+                  className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white font-mono text-sm outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/50"
+                />
+                <button
+                  type="button"
+                  onClick={startScanner}
+                  title="Escanear Código de Barras de la caja"
+                  className="px-3.5 py-3 bg-blue-600/90 hover:bg-blue-600 text-white rounded-xl shadow-md shadow-blue-500/20 backdrop-blur-sm transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center shrink-0"
+                >
+                  <BarcodeScanIcon className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Ubicación */}
+            <div>
+              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+                Ubicación Física
+              </label>
+              <select
+                value={locationId}
+                onChange={(e) => setLocationId(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/50"
               >
-                <BarcodeScanIcon className="w-5 h-5" />
-              </button>
+                <option value="">Seleccionar Ubicación...</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>{loc.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Estado */}
+            <div>
+              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+                Estado Inicial
+              </label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/50"
+              >
+                <option value="disponible">Disponible</option>
+                <option value="asignado">Asignado</option>
+                <option value="en_reparacion">En Reparación</option>
+                <option value="baja">Dado de Baja</option>
+              </select>
+            </div>
+
+            {/* Fecha de compra */}
+            <div>
+              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+                Fecha de Compra
+              </label>
+              <input
+                type="date"
+                value={purchaseDate}
+                onChange={(e) => setPurchaseDate(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/50"
+              />
             </div>
           </div>
 
-          {/* Ubicación */}
-          <div>
+          {/* Notas */}
+          <div className="mt-6">
             <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
-              Ubicación Física
+              Observaciones / Notas
             </label>
-            <select
-              value={locationId}
-              onChange={(e) => setLocationId(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all focus:ring-2 focus:ring-blue-500/50"
-            >
-              <option value="">Seleccionar Ubicación...</option>
-              {locations.map((loc) => (
-                <option key={loc.id} value={loc.id}>{loc.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Estado */}
-          <div>
-            <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
-              Estado Inicial
-            </label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all focus:ring-2 focus:ring-blue-500/50"
-            >
-              <option value="disponible">Disponible</option>
-              <option value="asignado">Asignado</option>
-              <option value="en_reparacion">En Reparación</option>
-              <option value="baja">Dado de Baja</option>
-            </select>
-          </div>
-
-          {/* Fecha de compra */}
-          <div>
-            <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
-              Fecha de Compra
-            </label>
-            <input
-              type="date"
-              value={purchaseDate}
-              onChange={(e) => setPurchaseDate(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all focus:ring-2 focus:ring-blue-500/50"
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              placeholder="Detalles sobre garantía, estado del cable, o si viene en kit..."
+              className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/50"
             />
           </div>
-        </div>
+        </GlassCard>
 
-        {/* Notas */}
-        <div>
-          <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
-            Observaciones / Notas
-          </label>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            placeholder="Detalles sobre garantía, estado del cable, o si viene en kit..."
-            className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all focus:ring-2 focus:ring-blue-500/50"
-          />
-        </div>
-
-        {/* Botones */}
+        {/* Botones de acción */}
         <div className="pt-4 flex justify-end space-x-4">
           <Link
             href="/dashboard/activos"
