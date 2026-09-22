@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { useTheme } from "next-themes";
 
-// Tiempos negativos (ej. -5s) para que los emojis ya estén en pantalla al cargar
 const FLOATING_ITEMS = [
   { emoji: "📦", left: "10%", delay: "-2s", duration: "15s", size: "text-4xl" },
   { emoji: "💻", left: "25%", delay: "-8s", duration: "20s", size: "text-5xl" },
@@ -29,33 +28,53 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Nuevo estado para alternar entre Login y Registro
+  const [isSignUp, setIsSignUp] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (isSignUp) {
+      // Flujo de Registro
+      const { error: signUpError } = await supabase.auth.signUp({ 
+        email, 
+        password 
+      });
 
-    if (error) {
-      setError("Credenciales incorrectas o usuario no encontrado.");
-      setIsLoading(false);
-      return;
+      if (signUpError) {
+        setError(signUpError.message);
+        setIsLoading(false);
+        return;
+      }
+    } else {
+      // Flujo de Inicio de Sesión
+      const { error: signInError } = await supabase.auth.signInWithPassword({ 
+        email, 
+        password 
+      });
+
+      if (signInError) {
+        setError("Credenciales incorrectas o usuario no encontrado.");
+        setIsLoading(false);
+        return;
+      }
     }
 
+    // Si todo sale bien, redirigir al panel
     router.push("/dashboard");
     router.refresh();
   };
 
   return (
-    // Fondo con degradado suave para resaltar el cristal
-    <div className="relative min-h-screen bg-linear-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 flex flex-col justify-center py-12 sm:px-6 lg:px-8 overflow-hidden transition-colors duration-500">
+    <div className="relative min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 flex flex-col justify-center py-12 sm:px-6 lg:px-8 overflow-hidden transition-colors duration-500">
       
-      {/* Capa de Emojis Animados (Ahora más opacos para que se vean bien de fondo) */}
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-40 dark:opacity-20">
         {FLOATING_ITEMS.map((item, i) => (
           <div
@@ -72,7 +91,6 @@ export default function LoginPage() {
         ))}
       </div>
 
-      {/* Botón de Modo Oscuro / Claro */}
       <div className="absolute top-4 right-4 z-20">
         {mounted && (
           <button
@@ -93,7 +111,6 @@ export default function LoginPage() {
         )}
       </div>
 
-      {/* Cabecera */}
       <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="h-14 w-14 bg-blue-600/90 backdrop-blur-sm rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-blue-500/30 border border-blue-400/30">
           <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -104,14 +121,13 @@ export default function LoginPage() {
           Inventario TI
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-300">
-          Ingresa tus credenciales para continuar
+          {isSignUp ? "Crea una cuenta nueva" : "Ingresa tus credenciales para continuar"}
         </p>
       </div>
 
-      {/* Caja Liquid Glass */}
       <div className="relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl py-8 px-4 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] sm:rounded-3xl sm:px-10 border border-white/60 dark:border-gray-700/50 transition-all duration-300">
-          <form className="space-y-6" onSubmit={handleLogin}>
+          <form className="space-y-6" onSubmit={handleSubmit}>
             
             {error && (
               <div className="bg-red-50/80 dark:bg-red-900/40 backdrop-blur-md border-l-4 border-red-500 p-4 rounded-lg">
@@ -132,7 +148,7 @@ export default function LoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none block w-full px-4 py-3 border border-white/50 dark:border-gray-600/50 rounded-xl shadow-inner placeholder-gray-400 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white/60 dark:bg-gray-800/60 focus:bg-white dark:focus:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent sm:text-sm transition-all"
+                  className="appearance-none block w-full px-4 py-3 border border-white/50 dark:border-gray-600/50 rounded-xl shadow-inner placeholder-gray-400 text-gray-900 dark:text-white bg-white/60 dark:bg-gray-800/60 focus:bg-white dark:focus:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent sm:text-sm transition-all"
                   placeholder="ejemplo@empresa.com"
                 />
               </div>
@@ -147,14 +163,19 @@ export default function LoginPage() {
                   id="password"
                   name="password"
                   type="password"
-                  autoComplete="current-password"
+                  autoComplete={isSignUp ? "new-password" : "current-password"}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none block w-full px-4 py-3 border border-white/50 dark:border-gray-600/50 rounded-xl shadow-inner placeholder-gray-400 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white/60 dark:bg-gray-800/60 focus:bg-white dark:focus:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent sm:text-sm transition-all"
+                  className="appearance-none block w-full px-4 py-3 border border-white/50 dark:border-gray-600/50 rounded-xl shadow-inner placeholder-gray-400 text-gray-900 dark:text-white bg-white/60 dark:bg-gray-800/60 focus:bg-white dark:focus:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent sm:text-sm transition-all"
                   placeholder="••••••••"
                 />
               </div>
+              {isSignUp && (
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  La contraseña debe tener al menos 6 caracteres.
+                </p>
+              )}
             </div>
 
             <div className="pt-2">
@@ -169,11 +190,27 @@ export default function LoginPage() {
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                 ) : (
-                  "Iniciar Sesión"
+                  isSignUp ? "Crear Cuenta" : "Iniciar Sesión"
                 )}
               </button>
             </div>
           </form>
+
+          {/* Botón para alternar modos */}
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setError(null);
+                setPassword(""); // Limpiar contraseña por seguridad al cambiar
+              }}
+              className="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+            >
+              {isSignUp 
+                ? "¿Ya tienes cuenta? Inicia sesión aquí" 
+                : "¿No tienes cuenta? Regístrate gratis"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
