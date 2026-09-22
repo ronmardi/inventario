@@ -23,15 +23,34 @@ export default function DashboardLayout({
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [userRole, setUserRole] = useState<string>("employee"); // Estado para el control de acceso
+  const [mounted, setMounted] = useState(false);
+  
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
   const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    // Resolver warning ESLint: setMounted se ejecuta de forma asíncrona segura
+    const timer = setTimeout(() => setMounted(true), 0);
+
+    async function fetchRole() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+          
+        if (data) setUserRole(data.role);
+      }
+    }
+    
+    fetchRole();
+    return () => clearTimeout(timer);
+  }, [supabase]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -39,13 +58,19 @@ export default function DashboardLayout({
     router.refresh();
   };
 
+  // Construcción dinámica del menú: Ocultar ítems administrativos a los empleados
   const navigation = [
     { name: "Inicio", href: "/dashboard", icon: HomeIcon },
     { name: "Inventario", href: "/dashboard/activos", icon: ArchiveIcon },
     { name: "Escanear Equipo", href: "/dashboard/escaner", icon: QrCodeIcon },
     { name: "Mantenimiento", href: "/dashboard/mantenimiento", icon: WrenchIcon },
-    { name: "Perfil Empresa", href: "/dashboard/perfil", icon: BuildingOfficeIcon }, // <--- NUEVO
-    { name: "Configuración", href: "/dashboard/configuracion", icon: CogIcon },
+    // Menús protegidos (Solo Super Admin o Técnico IT)
+    ...(userRole === "superadmin" || userRole === "it_technician"
+      ? [
+          { name: "Perfil Empresa", href: "/dashboard/perfil", icon: BuildingOfficeIcon },
+          { name: "Configuración", href: "/dashboard/configuracion", icon: CogIcon },
+        ]
+      : []),
   ];
 
   return (
