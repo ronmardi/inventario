@@ -55,7 +55,17 @@ export default function ExportarButton() {
         "Notas / Garantía",
       ];
 
-      // 3. Mapear cada fila sanitizando comillas y comas para formato CSV
+      // Sanitizador anti-CSV Injection (previene ejecución de fórmulas en Excel)
+      const sanitizeCSV = (value: string | null | undefined): string => {
+        if (!value) return '""';
+        let sanitized = String(value).replace(/"/g, '""');
+        if (/^[=+\-@]/.test(sanitized)) {
+          sanitized = "'" + sanitized;
+        }
+        return `"${sanitized}"`;
+      };
+
+      // 3. Mapear cada fila aplicando la sanitización en cada campo
       const rows = assets.map((item) => {
         const categoryName = Array.isArray(item.categories)
           ? item.categories[0]?.name
@@ -66,15 +76,15 @@ export default function ExportarButton() {
           : (item.locations as unknown as { name?: string })?.name || "Sin Ubicación";
 
         return [
-          `"${item.asset_tag || ""}"`,
-          `"${(item.name || "").replace(/"/g, '""')}"`,
-          `"${(item.model || "").replace(/"/g, '""')}"`,
-          `"${(item.serial_number || "").replace(/"/g, '""')}"`,
-          `"${categoryName}"`,
-          `"${locationName}"`,
-          `"${statusLabels[item.status] || item.status}"`,
-          `"${item.purchase_date || ""}"`,
-          `"${(item.notes || "").replace(/"/g, '""')}"`,
+          sanitizeCSV(item.asset_tag),
+          sanitizeCSV(item.name),
+          sanitizeCSV(item.model),
+          sanitizeCSV(item.serial_number),
+          sanitizeCSV(categoryName),
+          sanitizeCSV(locationName),
+          sanitizeCSV(statusLabels[item.status] || item.status),
+          sanitizeCSV(item.purchase_date),
+          sanitizeCSV(item.notes),
         ].join(",");
       });
 
