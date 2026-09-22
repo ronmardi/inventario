@@ -18,6 +18,17 @@ const FLOATING_ITEMS = [
   { emoji: "🖨️", left: "75%", delay: "-3s", duration: "18s", size: "text-5xl" },
 ];
 
+// Función para traducir los errores de Supabase al español latino
+const traducirError = (mensaje: string) => {
+  const msj = mensaje.toLowerCase();
+  if (msj.includes("user already registered")) return "Este correo ya está registrado en el sistema.";
+  if (msj.includes("password should be at least 6 characters")) return "La contraseña debe tener al menos 6 caracteres.";
+  if (msj.includes("invalid login credentials")) return "El correo o la contraseña son incorrectos.";
+  if (msj.includes("email not confirmed")) return "Debes confirmar tu correo electrónico.";
+  if (msj.includes("database error")) return "Error interno al crear perfil. (Revisa tu base de datos).";
+  return "Ocurrió un error inesperado. Por favor, intenta de nuevo.";
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();
@@ -29,7 +40,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   
-  // Nuevo estado para alternar entre Login y Registro
   const [isSignUp, setIsSignUp] = useState(false);
 
   useEffect(() => {
@@ -41,39 +51,56 @@ export default function LoginPage() {
     setIsLoading(true);
     setError(null);
 
-    if (isSignUp) {
-      // Flujo de Registro
-      const { error: signUpError } = await supabase.auth.signUp({ 
-        email, 
-        password 
-      });
+    try {
+      if (isSignUp) {
+        // Flujo de Registro
+        const { error: signUpError } = await supabase.auth.signUp({ 
+          email, 
+          password 
+        });
 
-      if (signUpError) {
-        setError(signUpError.message);
+        if (signUpError) {
+          setError(traducirError(signUpError.message));
+          setIsLoading(false);
+          return;
+        }
+      } else {
+        // Flujo de Inicio de Sesión
+        const { error: signInError } = await supabase.auth.signInWithPassword({ 
+          email, 
+          password 
+        });
+
+        if (signInError) {
+          setError(traducirError(signInError.message));
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Validar si realmente hay sesión antes de redirigir (evita el bucle infinito)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError("No se pudo iniciar sesión. Verifica tus datos.");
         setIsLoading(false);
         return;
       }
-    } else {
-      // Flujo de Inicio de Sesión
-      const { error: signInError } = await supabase.auth.signInWithPassword({ 
-        email, 
-        password 
-      });
 
-      if (signInError) {
-        setError("Credenciales incorrectas o usuario no encontrado.");
-        setIsLoading(false);
-        return;
-      }
+      // Si todo sale bien, redirigir al panel
+      router.push("/dashboard");
+      router.refresh();
+      
+      // Seguro para apagar el botón de carga por si Next.js tarda en cambiar de página
+      setTimeout(() => setIsLoading(false), 2000);
+
+    } catch (err) {
+      setError("Error de conexión. Revisa tu internet.");
+      setIsLoading(false);
     }
-
-    // Si todo sale bien, redirigir al panel
-    router.push("/dashboard");
-    router.refresh();
   };
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 flex flex-col justify-center py-12 sm:px-6 lg:px-8 overflow-hidden transition-colors duration-500">
+    <div className="relative min-h-screen bg-linear-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 flex flex-col justify-center py-12 sm:px-6 lg:px-8 overflow-hidden transition-colors duration-500">
       
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-40 dark:opacity-20">
         {FLOATING_ITEMS.map((item, i) => (
@@ -196,13 +223,12 @@ export default function LoginPage() {
             </div>
           </form>
 
-          {/* Botón para alternar modos */}
           <div className="mt-6 text-center">
             <button
               onClick={() => {
                 setIsSignUp(!isSignUp);
                 setError(null);
-                setPassword(""); // Limpiar contraseña por seguridad al cambiar
+                setPassword("");
               }}
               className="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
             >
