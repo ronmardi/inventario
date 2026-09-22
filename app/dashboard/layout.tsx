@@ -44,6 +44,7 @@ export default function DashboardLayout({
     { name: "Inventario", href: "/dashboard/activos", icon: ArchiveIcon },
     { name: "Escanear Equipo", href: "/dashboard/escaner", icon: QrCodeIcon },
     { name: "Mantenimiento", href: "/dashboard/mantenimiento", icon: WrenchIcon },
+    { name: "Perfil Empresa", href: "/dashboard/perfil", icon: BuildingOfficeIcon }, // <--- NUEVO
     { name: "Configuración", href: "/dashboard/configuracion", icon: CogIcon },
   ];
 
@@ -184,3 +185,4 @@ function CogIcon(props: React.SVGProps<SVGSVGElement>) { return <svg fill="none"
 function MenuIcon(props: React.SVGProps<SVGSVGElement>) { return <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>; }
 function XIcon(props: React.SVGProps<SVGSVGElement>) { return <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>; }
 function LogoutIcon(props: React.SVGProps<SVGSVGElement>) { return <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" /></svg>; }
+function BuildingOfficeIcon(props: React.SVGProps<SVGSVGElement>) { return <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12.25" /></svg>; }
