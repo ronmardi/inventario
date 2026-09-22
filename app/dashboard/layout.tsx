@@ -126,7 +126,7 @@ export default function DashboardLayout({
       )}
 
       {/* Contenido Principal con Fondo Animado */}
-      <div className="flex flex-1 flex-col overflow-hidden relative bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800">
+      <div className="flex flex-1 flex-col overflow-hidden relative bg-linear-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800">
         
         {/* Emojis Flotantes del Dashboard */}
         <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-30 dark:opacity-10">
