@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { GlassCard } from "@/components/ui/GlassCard";
 
 export default function PerfilEmpresaPage() {
   const supabase = createClient();
@@ -18,47 +20,59 @@ export default function PerfilEmpresaPage() {
   const [contactEmail, setContactEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [currency, setCurrency] = useState("CLP");
-  
+
   // Manejo del Logo
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
 
   useEffect(() => {
     async function loadProfile() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      
       if (!user) {
         router.push("/login");
         return;
       }
 
-      // 1. Obtener el ID del cliente al que pertenece el usuario
+      // 🔴 SEGURIDAD: Obtener el perfil y rol del usuario
       const { data: profile } = await supabase
         .from("profiles")
-        .select("client_id")
+        .select("client_id, role")
         .eq("id", user.id)
         .single();
 
-      if (profile?.client_id) {
-        setClientId(profile.client_id);
-        
-        // 2. Obtener los datos actuales de la empresa (tabla clients)
-        const { data: clientData } = await supabase
-          .from("clients")
-          .select("*")
-          .eq("id", profile.client_id)
-          .single();
-
-        if (clientData) {
-          setCompanyName(clientData.name || "");
-          setContactEmail(clientData.contact_email || "");
-          setPhone(clientData.phone || "");
-          setCurrency(clientData.currency || "CLP");
-          if (clientData.logo_url) setLogoPreview(clientData.logo_url);
-        }
+      // 🔴 SEGURIDAD: Redirigir si no tiene permisos (Solo admin/técnico)
+      if (
+        !profile?.client_id ||
+        (profile.role !== "superadmin" && profile.role !== "it_technician")
+      ) {
+        router.push("/dashboard");
+        return;
       }
+
+      setClientId(profile.client_id);
+
+      // Cargar datos actuales de la empresa
+      const { data: clientData } = await supabase
+        .from("clients")
+        .select("*")
+        .eq("id", profile.client_id)
+        .single();
+
+      if (clientData) {
+        setCompanyName(clientData.name || "");
+        setContactEmail(clientData.contact_email || "");
+        setPhone(clientData.phone || "");
+        setCurrency(clientData.currency || "CLP");
+        if (clientData.logo_url) setLogoPreview(clientData.logo_url);
+      }
+
       setLoading(false);
     }
     loadProfile();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, router]);
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -81,12 +95,11 @@ export default function PerfilEmpresaPage() {
     try {
       let finalLogoUrl = logoPreview;
 
-      // Si hay un archivo nuevo, lo subimos a Supabase Storage (Bucket: 'logos')
+      // Subir archivo nuevo a Supabase Storage (Bucket: 'logos')
       if (logoFile) {
-        const fileExt = logoFile.name.split('.').pop();
+        const fileExt = logoFile.name.split(".").pop();
         const fileName = `${clientId}-${Date.now()}.${fileExt}`;
-        
-        // Nota: Asegúrate de tener un bucket público llamado 'logos' en tu Supabase
+
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from("logos")
           .upload(fileName, logoFile, { upsert: true });
@@ -113,11 +126,14 @@ export default function PerfilEmpresaPage() {
         .eq("id", clientId);
 
       if (error) throw error;
-      
+
       alert("¡Perfil de empresa actualizado con éxito!");
       router.refresh();
-    } catch (error: any) {
-      alert("Error al guardar: " + error.message);
+    } catch (error: unknown) {
+      // Fix ESLint: Tipar error genérico de forma segura
+      const errorMessage =
+        error instanceof Error ? error.message : "Ocurrió un error inesperado";
+      alert("Error al guardar: " + errorMessage);
     } finally {
       setIsSaving(false);
     }
@@ -153,40 +169,43 @@ export default function PerfilEmpresaPage() {
 
       <form onSubmit={handleSave} className="space-y-6">
         
-        {/* Sección de Logo (Liquid Glass) */}
-        <div className="p-8 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-gray-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] transition-all">
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white border-b border-gray-200/50 dark:border-gray-700/50 pb-3 mb-6">
-            Identidad Visual
-          </h2>
-          
+        {/* Sección de Logo */}
+        <GlassCard title="Identidad Visual">
           <div className="flex flex-col sm:flex-row items-center gap-8">
-            <div className="h-32 w-32 shrink-0 rounded-2xl bg-white/60 dark:bg-gray-800/60 border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center overflow-hidden shadow-inner backdrop-blur-md">
+            <div className="relative h-32 w-32 shrink-0 rounded-2xl bg-white/60 dark:bg-gray-800/60 border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center overflow-hidden shadow-inner backdrop-blur-md">
               {logoPreview ? (
-                <img src={logoPreview} alt="Logo Empresa" className="h-full w-full object-contain p-2" />
+                <Image
+                  src={logoPreview}
+                  alt="Logo Empresa"
+                  fill
+                  className="object-contain p-2"
+                  unoptimized // Permitir previsualización desde FileReader (base64)
+                />
               ) : (
                 <BuildingIcon className="w-10 h-10 text-gray-400 dark:text-gray-500" />
               )}
             </div>
-            
+
             <div className="space-y-2 text-center sm:text-left">
               <label className="cursor-pointer inline-flex items-center px-5 py-2.5 rounded-xl bg-blue-600/90 hover:bg-blue-600 text-sm font-bold text-white shadow-md shadow-blue-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]">
                 <UploadIcon className="w-4 h-4 mr-2" />
                 Subir Nuevo Logo
-                <input type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleLogoChange}
+                />
               </label>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 Recomendado: PNG o SVG transparente, mínimo 400x400px.
               </p>
             </div>
           </div>
-        </div>
+        </GlassCard>
 
         {/* Sección de Datos Generales */}
-        <div className="p-8 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-gray-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] transition-all">
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white border-b border-gray-200/50 dark:border-gray-700/50 pb-3 mb-6">
-            Información de la Organización
-          </h2>
-
+        <GlassCard title="Información de la Organización">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
               <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1.5">
@@ -247,7 +266,7 @@ export default function PerfilEmpresaPage() {
               </p>
             </div>
           </div>
-        </div>
+        </GlassCard>
 
         {/* Botón Guardar */}
         <div className="flex justify-end pt-2">
@@ -259,7 +278,6 @@ export default function PerfilEmpresaPage() {
             {isSaving ? "Guardando Cambios..." : "Guardar Configuración"}
           </button>
         </div>
-
       </form>
     </div>
   );
