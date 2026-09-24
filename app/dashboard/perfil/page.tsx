@@ -7,6 +7,12 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { GlassCard } from "@/components/ui/GlassCard";
 
+interface AlertState {
+  title: string;
+  message: string;
+  type?: "success" | "error" | "warning";
+}
+
 export default function PerfilEmpresaPage() {
   const supabase = createClient();
   const router = useRouter();
@@ -25,6 +31,9 @@ export default function PerfilEmpresaPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
 
+  // Estado del Modal Personalizado
+  const [alertData, setAlertData] = useState<AlertState | null>(null);
+
   useEffect(() => {
     async function loadProfile() {
       const {
@@ -36,14 +45,12 @@ export default function PerfilEmpresaPage() {
         return;
       }
 
-      // 🔴 SEGURIDAD: Obtener el perfil y rol del usuario
       const { data: profile } = await supabase
         .from("profiles")
         .select("client_id, role")
         .eq("id", user.id)
         .single();
 
-      // 🔴 SEGURIDAD: Redirigir si no tiene permisos (Solo admin/técnico)
       if (
         !profile?.client_id ||
         (profile.role !== "superadmin" && profile.role !== "it_technician")
@@ -54,7 +61,6 @@ export default function PerfilEmpresaPage() {
 
       setClientId(profile.client_id);
 
-      // Cargar datos actuales de la empresa
       const { data: clientData } = await supabase
         .from("clients")
         .select("*")
@@ -95,7 +101,6 @@ export default function PerfilEmpresaPage() {
     try {
       let finalLogoUrl = logoPreview;
 
-      // Subir archivo nuevo a Supabase Storage (Bucket: 'logos')
       if (logoFile) {
         const fileExt = logoFile.name.split(".").pop();
         const fileName = `${clientId}-${Date.now()}.${fileExt}`;
@@ -112,7 +117,6 @@ export default function PerfilEmpresaPage() {
         }
       }
 
-      // Actualizar registro en la tabla clients
       const { error } = await supabase
         .from("clients")
         .update({
@@ -127,13 +131,24 @@ export default function PerfilEmpresaPage() {
 
       if (error) throw error;
 
-      alert("¡Perfil de empresa actualizado con éxito!");
+      // 🟢 Modal de Éxito
+      setAlertData({
+        title: "¡Cambios Guardados!",
+        message: "El perfil de la empresa y su identidad visual se han actualizado correctamente.",
+        type: "success",
+      });
       router.refresh();
+
     } catch (error: unknown) {
-      // Fix ESLint: Tipar error genérico de forma segura
       const errorMessage =
         error instanceof Error ? error.message : "Ocurrió un error inesperado";
-      alert("Error al guardar: " + errorMessage);
+      
+      // 🔴 Modal de Error
+      setAlertData({
+        title: "Error al guardar",
+        message: errorMessage,
+        type: "error",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -148,7 +163,46 @@ export default function PerfilEmpresaPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 relative">
+      
+      {/* MODAL DE ALERTA PERSONALIZADO (LIQUID GLASS) */}
+      {alertData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 dark:bg-black/70 backdrop-blur-md transition-all animate-fade-in">
+          <div className="w-full max-w-md bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl rounded-3xl border border-white/80 dark:border-gray-700/60 p-6 shadow-2xl space-y-4 text-center">
+            
+            <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center border shadow-sm ${
+              alertData.type === "error" 
+                ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400" 
+                : "bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400"
+            }`}>
+              {alertData.type === "error" ? (
+                <ExclamationTriangleIcon className="w-7 h-7" />
+              ) : (
+                <CheckCircleIcon className="w-7 h-7" />
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-lg font-extrabold text-gray-900 dark:text-white">
+                {alertData.title}
+              </h3>
+              <p className="mt-2 text-sm font-medium text-gray-600 dark:text-gray-300 leading-relaxed">
+                {alertData.message}
+              </p>
+            </div>
+
+            <div className="pt-4">
+              <button
+                onClick={() => setAlertData(null)}
+                className="w-full py-3.5 rounded-xl font-bold text-sm text-white bg-blue-600/90 hover:bg-blue-600 shadow-md shadow-blue-500/20 backdrop-blur-sm transition-all hover:scale-[1.01] active:scale-[0.99]"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Encabezado */}
       <div className="flex items-center justify-between p-6 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-white/60 dark:border-gray-700/50 shadow-sm transition-all">
         <div>
@@ -179,7 +233,7 @@ export default function PerfilEmpresaPage() {
                   alt="Logo Empresa"
                   fill
                   className="object-contain p-2"
-                  unoptimized // Permitir previsualización desde FileReader (base64)
+                  unoptimized
                 />
               ) : (
                 <BuildingIcon className="w-10 h-10 text-gray-400 dark:text-gray-500" />
@@ -285,17 +339,14 @@ export default function PerfilEmpresaPage() {
 
 // Iconos SVG
 function BuildingIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.2} stroke="currentColor" {...props}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12.25" />
-    </svg>
-  );
+  return <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.2} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12.25" /></svg>;
 }
-
 function UploadIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-    </svg>
-  );
+  return <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>;
+}
+function CheckCircleIcon(props: React.SVGProps<SVGSVGElement>) {
+  return <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+}
+function ExclamationTriangleIcon(props: React.SVGProps<SVGSVGElement>) {
+  return <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2.25m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>;
 }
