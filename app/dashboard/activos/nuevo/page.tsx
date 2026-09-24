@@ -48,10 +48,11 @@ export default function NuevoActivoPage() {
   const [isScanning, setIsScanning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
-  // Modal de Alerta Personalizado (Reemplaza a alert())
+  // Modal de Alerta Personalizado
   const [alertData, setAlertData] = useState<AlertState | null>(null);
   
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  // Referencia para el escáner de html5-qrcode
+  const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
     // Inicializar etiqueta de ID de forma segura
@@ -123,54 +124,47 @@ export default function NuevoActivoPage() {
     }
   };
 
-  // Activar escáner de código de barras
-  const startScanner = async () => {
+  // Activar escáner de código de barras (Compatible con iOS/Android)
+  const startScanner = () => {
     setIsScanning(true);
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
+    // Damos un pequeño retraso para que el modal y el div "reader" se rendericen
+    setTimeout(() => {
+      const html5QrCode = new Html5Qrcode("reader");
+      scannerRef.current = html5QrCode;
 
-      if ("BarcodeDetector" in window) {
-        // @ts-expect-error - BarcodeDetector API experimental
-        const barcodeDetector = new window.BarcodeDetector({
-          formats: ["code_128", "code_39", "ean_13", "qr_code", "data_matrix"],
+      html5QrCode.start(
+        { facingMode: "environment" },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 100 }, // Formato rectangular ideal para códigos de barras
+        },
+        (decodedText) => {
+          // Lectura Exitosa
+          setSerialNumber(decodedText);
+          stopScanner();
+        },
+        (errorMessage) => {
+          // Ignorar errores continuos de lectura mientras busca
+        }
+      ).catch((err) => {
+        // Error crítico (ej. el usuario denegó el permiso)
+        setIsScanning(false);
+        setAlertData({
+          title: "Acceso a Cámara Restringido 📷",
+          message: "Asegúrate de dar permisos de cámara al navegador o usa una conexión segura (HTTPS).",
+          type: "warning",
         });
-
-        const interval = setInterval(async () => {
-          if (videoRef.current && videoRef.current.readyState === 4) {
-            try {
-              const barcodes = await barcodeDetector.detect(videoRef.current);
-              if (barcodes.length > 0) {
-                setSerialNumber(barcodes[0].rawValue);
-                stopScanner(stream, interval);
-              }
-            } catch (err) {
-              console.error(err);
-            }
-          }
-        }, 500);
-      }
-    } catch {
-      // 🟢 AHORA SE MUESTRA EN UN MODAL ELEGANTE EN LUGAR DEL ALERT NATIVO
-      setIsScanning(false);
-      setAlertData({
-        title: "Acceso a Cámara Restringido 📷",
-        message: "No se pudo acceder a la cámara o el navegador no soporta la detección automática. Puedes ingresar el número de serie manualmente.",
-        type: "warning",
       });
-    }
+    }, 100);
   };
 
-  const stopScanner = (stream?: MediaStream, interval?: NodeJS.Timeout) => {
-    if (interval) clearInterval(interval);
-    if (videoRef.current && videoRef.current.srcObject) {
-      const activeStream = videoRef.current.srcObject as MediaStream;
-      activeStream.getTracks().forEach((track) => track.stop());
+  const stopScanner = () => {
+    if (scannerRef.current) {
+      scannerRef.current.stop().then(() => {
+        scannerRef.current?.clear();
+        scannerRef.current = null;
+      }).catch(console.error);
     }
     setIsScanning(false);
   };
@@ -244,7 +238,7 @@ export default function NuevoActivoPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       
-      {/* MODAL DE ALERTA PERSONALIZADO (LIQUID GLASS) */}
+      {/* MODAL DE ALERTA PERSONALIZADO */}
       {alertData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 dark:bg-black/70 backdrop-blur-md transition-all animate-fade-in">
           <div className="w-full max-w-md bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl rounded-3xl border border-white/80 dark:border-gray-700/60 p-6 shadow-2xl space-y-4 text-center">
@@ -278,18 +272,21 @@ export default function NuevoActivoPage() {
         </div>
       )}
 
-      {/* Modal del Escáner de Código de Barras */}
+      {/* MODAL DEL ESCÁNER DE CÓDIGO DE BARRAS */}
       {isScanning && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md p-4">
-          <div className="relative w-full max-w-md bg-gray-900 rounded-3xl overflow-hidden border border-gray-700 p-4 text-center">
+          <div className="relative w-full max-w-md bg-gray-900 rounded-3xl overflow-hidden border border-gray-700 p-4 text-center shadow-2xl">
             <h3 className="text-white font-bold text-lg mb-2">
               Escaneando Número de Serie
             </h3>
-            <p className="text-xs text-gray-400 mb-4">Apunta con la cámara al código de barras o S/N del producto</p>
-            <video ref={videoRef} autoPlay playsInline className="w-full h-64 object-cover rounded-2xl border border-gray-700" />
+            <p className="text-xs text-gray-400 mb-4">Apunta con la cámara al código de barras o QR del producto</p>
+            
+            {/* Contenedor donde html5-qrcode inyectará el video */}
+            <div id="reader" className="w-full bg-black rounded-2xl overflow-hidden border border-gray-700 mb-4"></div>
+            
             <button
               onClick={() => stopScanner()}
-              className="mt-4 px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm transition-all"
+              className="mt-2 px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm transition-all shadow-lg"
             >
               Cancelar Escaneo
             </button>
@@ -532,7 +529,7 @@ function BarcodeScanIcon(props: React.SVGProps<SVGSVGElement>) {
 
 function ExclamationTriangleIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
+    <svg fill="none" viewBox="0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
     </svg>
   );
