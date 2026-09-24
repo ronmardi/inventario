@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/utils/supabase/client";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { Html5Qrcode } from "html5-qrcode";
 
 interface Category {
   id: string;
