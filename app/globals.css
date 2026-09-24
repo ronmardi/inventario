@@ -40,3 +40,9 @@ body {
 .animate-float-up {
   animation: float-up linear infinite;
 }
+
+@layer components {
+  .card {
+    @apply bg-white/60 dark:bg-gray-900/60 backdrop-blur-xl rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm;
+  }
+}
