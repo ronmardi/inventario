@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { useTheme } from "next-themes";
@@ -23,34 +24,63 @@ export default function DashboardLayout({
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [userRole, setUserRole] = useState<string>("employee"); // Estado para el control de acceso
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [userRole, setUserRole] = useState<string>("employee");
   const [mounted, setMounted] = useState(false);
   
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [profile, setProfile] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [company, setCompany] = useState<any>(null);
+  
+  const profileMenuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
-    // Resolver warning ESLint: setMounted se ejecuta de forma asíncrona segura
     const timer = setTimeout(() => setMounted(true), 0);
 
-    async function fetchRole() {
+    async function loadData() {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", user.id)
-          .single();
-          
-        if (data) setUserRole(data.role);
+      if (!user) return;
+
+      const { data: userProfile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+        
+      if (userProfile) {
+        setUserRole(userProfile.role);
+        setProfile(userProfile);
+        
+        if (userProfile.client_id) {
+          const { data: clientData } = await supabase
+            .from("clients")
+            .select("name, logo_url")
+            .eq("id", userProfile.client_id)
+            .single();
+          if (clientData) setCompany(clientData);
+        }
       }
     }
     
-    fetchRole();
+    loadData();
     return () => clearTimeout(timer);
   }, [supabase]);
+
+  // Cierra el menú de perfil al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -58,13 +88,11 @@ export default function DashboardLayout({
     router.refresh();
   };
 
-  // Construcción dinámica del menú: Ocultar ítems administrativos a los empleados
   const navigation = [
     { name: "Inicio", href: "/dashboard", icon: HomeIcon },
     { name: "Inventario", href: "/dashboard/activos", icon: ArchiveIcon },
     { name: "Escanear Equipo", href: "/dashboard/escaner", icon: QrCodeIcon },
     { name: "Mantenimiento", href: "/dashboard/mantenimiento", icon: WrenchIcon },
-    // Menús protegidos (Solo Super Admin o Técnico IT)
     ...(userRole === "superadmin" || userRole === "it_technician"
       ? [
           { name: "Perfil Empresa", href: "/dashboard/perfil", icon: BuildingOfficeIcon },
@@ -73,20 +101,28 @@ export default function DashboardLayout({
       : []),
   ];
 
+  const logoUrl = company?.logo_url || profile?.company_logo;
+
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
       
       {/* Sidebar para Escritorio (Animada y Colapsable) */}
       <aside 
-        className={`hidden md:flex md:flex-col bg-slate-900 relative transition-all duration-300 ease-in-out ${
+        className={`hidden md:flex md:flex-col bg-slate-900 relative transition-all duration-300 ease-in-out border-r border-slate-800 ${
           isSidebarCollapsed ? "w-20" : "w-64"
         }`}
       >
-        <div className="flex h-16 shrink-0 items-center justify-center px-4 bg-slate-950 transition-all">
-          {isSidebarCollapsed ? (
-            <span className="text-xl font-bold text-blue-500">TI</span>
+        <div className="flex h-16 shrink-0 items-center justify-center px-4 bg-slate-950/50 border-b border-slate-800/50 transition-all">
+          {logoUrl ? (
+            <div className={`relative h-8 transition-all duration-300 ${isSidebarCollapsed ? "w-10" : "w-full"}`}>
+               <Image src={logoUrl} alt="Logo" fill className={`object-contain ${isSidebarCollapsed ? "object-center" : "object-left"}`} unoptimized />
+            </div>
           ) : (
-            <span className="text-xl font-bold text-white tracking-tight truncate">Inventario TI</span>
+            isSidebarCollapsed ? (
+              <span className="text-xl font-bold text-blue-500">TI</span>
+            ) : (
+              <span className="text-xl font-bold text-white tracking-tight truncate">{company?.name || "Inventario TI"}</span>
+            )
           )}
         </div>
         
@@ -101,7 +137,7 @@ export default function DashboardLayout({
         <div className="flex flex-1 flex-col overflow-y-auto">
           <nav className="flex-1 space-y-2 px-3 py-4">
             {navigation.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <Link
                   key={item.name}
@@ -126,14 +162,20 @@ export default function DashboardLayout({
 
       {/* Menú Móvil (Overlay) */}
       {isMobileMenuOpen && (
-        <div className="relative z-40 md:hidden">
+        <div className="relative z-50 md:hidden">
           <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm transition-opacity" onClick={() => setIsMobileMenuOpen(false)}></div>
-          <div className="fixed inset-0 z-40 flex">
+          <div className="fixed inset-0 z-50 flex">
             <div className="relative flex w-full max-w-xs flex-1 flex-col bg-slate-900 pt-5 pb-4">
               <div className="flex items-center px-4 mb-4">
-                <span className="text-xl font-bold text-white">Inventario TI</span>
-                <button type="button" className="ml-auto flex h-10 w-10 items-center justify-center rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white" onClick={() => setIsMobileMenuOpen(false)}>
-                  <XIcon className="h-6 w-6 text-white" />
+                {logoUrl ? (
+                  <div className="relative h-8 w-32">
+                    <Image src={logoUrl} alt="Logo" fill className="object-contain object-left" unoptimized />
+                  </div>
+                ) : (
+                  <span className="text-xl font-bold text-white truncate">{company?.name || "Inventario TI"}</span>
+                )}
+                <button type="button" className="ml-auto flex h-10 w-10 items-center justify-center rounded-full text-slate-400 hover:bg-slate-800" onClick={() => setIsMobileMenuOpen(false)}>
+                  <XIcon className="h-6 w-6" />
                 </button>
               </div>
               <nav className="mt-5 space-y-1 px-2">
@@ -169,12 +211,14 @@ export default function DashboardLayout({
         </div>
 
         {/* Header Superior (Efecto Glass) */}
-        <header className="relative z-20 flex h-16 shrink-0 items-center justify-between border-b border-white/40 dark:border-gray-700/50 bg-white/50 dark:bg-gray-900/50 backdrop-blur-md px-4 md:px-6 shadow-sm transition-colors duration-300">
+        <header className="relative z-30 flex h-16 shrink-0 items-center justify-between border-b border-white/40 dark:border-gray-700/50 bg-white/50 dark:bg-gray-900/50 backdrop-blur-md px-4 md:px-6 shadow-sm transition-colors duration-300">
           <button type="button" className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white md:hidden focus:outline-none" onClick={() => setIsMobileMenuOpen(true)}>
             <MenuIcon className="h-6 w-6" />
           </button>
           
           <div className="flex flex-1 justify-end items-center space-x-4">
+            
+            {/* Toggle Tema Oscuro */}
             {mounted && (
               <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="p-2 rounded-full bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border border-white/50 dark:border-gray-600/50 text-gray-500 dark:text-gray-400 hover:bg-white dark:hover:bg-gray-700 transition-all shadow-sm">
                 {theme === "dark" ? (
@@ -184,10 +228,44 @@ export default function DashboardLayout({
                 )}
               </button>
             )}
-            <button onClick={handleLogout} className="flex items-center px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border border-white/50 dark:border-gray-600/50 rounded-lg hover:text-red-600 dark:hover:text-red-400 hover:bg-white dark:hover:bg-gray-800 transition-all shadow-sm">
-              <LogoutIcon className="mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">Cerrar Sesión</span>
-            </button>
+
+            {/* Dropdown del Usuario */}
+            <div className="relative" ref={profileMenuRef}>
+              <button
+                onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                className="flex items-center gap-3 p-1.5 pr-3 rounded-2xl bg-white/40 dark:bg-gray-800/40 hover:bg-white/80 dark:hover:bg-gray-700/80 border border-white/50 dark:border-gray-600/50 transition-colors shadow-sm outline-none"
+              >
+                <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-bold shadow-sm shrink-0 overflow-hidden relative">
+                  {profile?.avatar_url ? (
+                    <Image src={profile.avatar_url} alt="Avatar" fill className="object-cover" unoptimized />
+                  ) : (
+                    profile?.full_name?.charAt(0).toUpperCase() || "U"
+                  )}
+                </div>
+                <div className="hidden md:block text-left">
+                  <p className="text-sm font-bold text-gray-900 dark:text-white leading-none">
+                    {profile?.full_name || "Cargando..."}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 capitalize font-medium">
+                    {userRole?.replace("_", " ")}
+                  </p>
+                </div>
+                <ChevronDownIcon className={`w-4 h-4 text-gray-400 hidden md:block transition-transform ${isProfileMenuOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {isProfileMenuOpen && (
+                <div className="absolute right-0 mt-3 w-56 bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 dark:border-gray-700/50 py-2 z-50">
+                  <Link href="/dashboard/perfil" onClick={() => setIsProfileMenuOpen(false)} className="flex items-center px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                    <UserCircleIcon className="w-5 h-5 mr-3 text-gray-400" /> Mi Perfil
+                  </Link>
+                  <div className="h-px bg-gray-100 dark:bg-gray-800 my-1.5"></div>
+                  <button onClick={handleLogout} className="w-full flex items-center px-4 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors">
+                    <LogoutIcon className="w-5 h-5 mr-3" /> Cerrar Sesión
+                  </button>
+                </div>
+              )}
+            </div>
+            
           </div>
         </header>
 
@@ -200,7 +278,11 @@ export default function DashboardLayout({
   );
 }
 
-// Iconos SVG 
+// Iconos SVG Adicionales
+function ChevronDownIcon(props: React.SVGProps<SVGSVGElement>) { return <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>; }
+function UserCircleIcon(props: React.SVGProps<SVGSVGElement>) { return <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" /></svg>; }
+
+// Tus Iconos Existentes (No modificados)
 function ChevronIcon(props: React.SVGProps<SVGSVGElement>) { return <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>; }
 function HomeIcon(props: React.SVGProps<SVGSVGElement>) { return <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>; }
 function ArchiveIcon(props: React.SVGProps<SVGSVGElement>) { return <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" /></svg>; }
