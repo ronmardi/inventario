@@ -235,7 +235,7 @@ export default function DashboardLayout({
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
                 className="flex items-center gap-3 p-1.5 pr-3 rounded-2xl bg-white/40 dark:bg-gray-800/40 hover:bg-white/80 dark:hover:bg-gray-700/80 border border-white/50 dark:border-gray-600/50 transition-colors shadow-sm outline-none"
               >
-                <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-bold shadow-sm shrink-0 overflow-hidden relative">
+                <div className="h-9 w-9 rounded-xl bg-linear-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-bold shadow-sm shrink-0 overflow-hidden relative">
                   {profile?.avatar_url ? (
                     <Image src={profile.avatar_url} alt="Avatar" fill className="object-cover" unoptimized />
                   ) : (
