@@ -37,6 +37,9 @@ export default function LoginPage() {
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // Nuevo estado para el nombre de la empresa
+  const [companyName, setCompanyName] = useState("");
+  
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   
@@ -53,6 +56,13 @@ export default function LoginPage() {
 
     try {
       if (isSignUp) {
+        // Validar que haya ingresado el nombre de la empresa
+        if (!companyName.trim()) {
+          setError("El nombre de la empresa es obligatorio para registrarse.");
+          setIsLoading(false);
+          return;
+        }
+
         // Flujo de Registro
         const { error: signUpError } = await supabase.auth.signUp({ 
           email, 
@@ -64,6 +74,20 @@ export default function LoginPage() {
           setIsLoading(false);
           return;
         }
+
+        // P1.12: Crear la empresa y enlazar al usuario como superadmin usando la RPC segura
+        const { error: rpcError } = await supabase.rpc("registrar_empresa_inicial", {
+          p_company_name: companyName.trim()
+        });
+
+        if (rpcError) {
+          // Si esto falla, el auth del usuario se creó, pero su perfil quedó sin empresa.
+          // En un sistema robusto, podrías hacer rollback o derivarlo a un onboarding.
+          setError("Cuenta creada, pero ocurrió un error al configurar la empresa.");
+          setIsLoading(false);
+          return;
+        }
+
       } else {
         // Flujo de Inicio de Sesión
         const { error: signInError } = await supabase.auth.signInWithPassword({ 
@@ -148,7 +172,7 @@ export default function LoginPage() {
           Inventario TI
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-300">
-          {isSignUp ? "Crea una cuenta nueva" : "Ingresa tus credenciales para continuar"}
+          {isSignUp ? "Crea una cuenta nueva para tu organización" : "Ingresa tus credenciales para continuar"}
         </p>
       </div>
 
@@ -159,6 +183,27 @@ export default function LoginPage() {
             {error && (
               <div className="bg-red-50/80 dark:bg-red-900/40 backdrop-blur-md border-l-4 border-red-500 p-4 rounded-lg">
                 <p className="text-sm text-red-700 dark:text-red-300 font-medium">{error}</p>
+              </div>
+            )}
+
+            {/* Renderizado Condicional del Nombre de la Empresa */}
+            {isSignUp && (
+              <div className="animate-fade-in">
+                <label htmlFor="companyName" className="block text-sm font-medium text-gray-800 dark:text-gray-200">
+                  Nombre de tu Empresa
+                </label>
+                <div className="mt-1">
+                  <input
+                    id="companyName"
+                    name="companyName"
+                    type="text"
+                    required={isSignUp}
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    className="appearance-none block w-full px-4 py-3 border border-white/50 dark:border-gray-600/50 rounded-xl shadow-inner placeholder-gray-400 text-gray-900 dark:text-white bg-white/60 dark:bg-gray-800/60 focus:bg-white dark:focus:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent sm:text-sm transition-all"
+                    placeholder="Ej. TechCorp Ltda."
+                  />
+                </div>
               </div>
             )}
 
@@ -229,6 +274,7 @@ export default function LoginPage() {
                 setIsSignUp(!isSignUp);
                 setError(null);
                 setPassword("");
+                setCompanyName("");
               }}
               className="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
             >
