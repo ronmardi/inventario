@@ -30,9 +30,16 @@ export default function EscanerPage() {
 
   // Función para consultar el equipo en Supabase por código o número de serie
   const lookupAsset = async (code: string) => {
-    // Sanitizar entrada escapando caracteres reservados de PostgREST
-    const trimmed = code.trim().replace(/[,.()]/g, "");
-    if (!trimmed) return;
+    // P0.5: Sanitizar entrada escapando solo caracteres reservados de PostgREST,
+    // preservando caracteres válidos de búsqueda como puntos, comas o paréntesis.
+    const escapedCode = code
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"')
+      .replace(/%/g, "\\%")
+      .replace(/_/g, "\\_")
+      .trim();
+
+    if (!escapedCode) return;
 
     setLoadingAsset(true);
     setError(null);
@@ -51,14 +58,14 @@ export default function EscanerPage() {
         categories ( name ),
         locations ( name )
       `)
-      .or(`asset_tag.ilike.%${trimmed}%,serial_number.ilike.%${trimmed}%`)
+      .or(`asset_tag.ilike.%${escapedCode}%,serial_number.ilike.%${escapedCode}%`)
       .maybeSingle();
 
     if (dbError) {
       console.error("Error al buscar activo:", dbError);
       setError("Ocurrió un problema al consultar la base de datos.");
     } else if (!data) {
-      setError(`No se encontró ningún equipo con el código o serie "${trimmed}".`);
+      setError(`No se encontró ningún equipo con el código o serie "${code.trim()}".`);
     } else {
       setFoundAsset(data as unknown as AssetResult);
     }
