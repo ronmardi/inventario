@@ -16,6 +16,12 @@ interface Location {
   address: string | null;
 }
 
+interface AlertState {
+  title: string;
+  message: string;
+  type: "error" | "success" | "warning";
+}
+
 export default function ConfiguracionPage() {
   const supabase = createClient();
   const router = useRouter();
@@ -34,6 +40,10 @@ export default function ConfiguracionPage() {
   // Estados para edición (Modales)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
+
+  // P1.11 / P3.22: Estados para Modales de Alerta y Confirmación (reemplazan alert() y confirm())
+  const [alertData, setAlertData] = useState<AlertState | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; type: "category" | "location" } | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -74,19 +84,25 @@ export default function ConfiguracionPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, router]);
 
-  // CATEGORÍAS: Crear, Editar, Eliminar
+  // CATEGORÍAS: Crear, Editar
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName || !clientId) return;
 
-    await supabase.from("categories").insert({
+    const { error } = await supabase.from("categories").insert({
       client_id: clientId,
       name: newCatName,
       description: newCatDesc || null,
     });
 
+    if (error) {
+      setAlertData({ title: "Error", message: "No se pudo crear la categoría.", type: "error" });
+      return;
+    }
+
     setNewCatName("");
     setNewCatDesc("");
+    setAlertData({ title: "Éxito", message: "Categoría creada correctamente.", type: "success" });
     loadData();
   };
 
@@ -94,7 +110,7 @@ export default function ConfiguracionPage() {
     e.preventDefault();
     if (!editingCategory) return;
 
-    await supabase
+    const { error } = await supabase
       .from("categories")
       .update({
         name: editingCategory.name,
@@ -102,34 +118,35 @@ export default function ConfiguracionPage() {
       })
       .eq("id", editingCategory.id);
 
+    if (error) {
+      setAlertData({ title: "Error", message: "No se pudo actualizar la categoría.", type: "error" });
+      return;
+    }
+
     setEditingCategory(null);
+    setAlertData({ title: "Actualizado", message: "Categoría guardada correctamente.", type: "success" });
     loadData();
   };
 
-  const handleDeleteCategory = async (id: string, name: string) => {
-    if (confirm(`¿Estás seguro de eliminar la categoría "${name}"?`)) {
-      const { error } = await supabase.from("categories").delete().eq("id", id);
-      if (error) {
-        alert("No se puede eliminar la categoría porque hay equipos asociados a ella.");
-      } else {
-        loadData();
-      }
-    }
-  };
-
-  // UBICACIONES: Crear, Editar, Eliminar
+  // UBICACIONES: Crear, Editar
   const handleCreateLocation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newLocName || !clientId) return;
 
-    await supabase.from("locations").insert({
+    const { error } = await supabase.from("locations").insert({
       client_id: clientId,
       name: newLocName,
       address: newLocAddress || null,
     });
 
+    if (error) {
+      setAlertData({ title: "Error", message: "No se pudo crear la ubicación.", type: "error" });
+      return;
+    }
+
     setNewLocName("");
     setNewLocAddress("");
+    setAlertData({ title: "Éxito", message: "Ubicación creada correctamente.", type: "success" });
     loadData();
   };
 
@@ -137,7 +154,7 @@ export default function ConfiguracionPage() {
     e.preventDefault();
     if (!editingLocation) return;
 
-    await supabase
+    const { error } = await supabase
       .from("locations")
       .update({
         name: editingLocation.name,
@@ -145,24 +162,93 @@ export default function ConfiguracionPage() {
       })
       .eq("id", editingLocation.id);
 
+    if (error) {
+      setAlertData({ title: "Error", message: "No se pudo actualizar la ubicación.", type: "error" });
+      return;
+    }
+
     setEditingLocation(null);
+    setAlertData({ title: "Actualizado", message: "Ubicación guardada correctamente.", type: "success" });
     loadData();
   };
 
-  const handleDeleteLocation = async (id: string, name: string) => {
-    if (confirm(`¿Estás seguro de eliminar la ubicación "${name}"?`)) {
-      const { error } = await supabase.from("locations").delete().eq("id", id);
-      if (error) {
-        alert("No se puede eliminar la ubicación porque hay equipos asociados a ella.");
-      } else {
-        loadData();
-      }
+  // P1.11: ELIMINACIÓN UNIFICADA (Reemplaza los confirm() y alert())
+  const executeDelete = async () => {
+    if (!confirmDelete) return;
+
+    const table = confirmDelete.type === "category" ? "categories" : "locations";
+    const { error } = await supabase.from(table).delete().eq("id", confirmDelete.id);
+
+    if (error) {
+      setAlertData({
+        title: "No se puede eliminar",
+        message: `Hay equipos asociados a esta ${confirmDelete.type === "category" ? "categoría" : "ubicación"}. Reasígnalos primero.`,
+        type: "warning",
+      });
+    } else {
+      setAlertData({
+        title: "Eliminado",
+        message: `La ${confirmDelete.type === "category" ? "categoría" : "ubicación"} ha sido eliminada.`,
+        type: "success",
+      });
+      loadData();
     }
+    
+    setConfirmDelete(null);
   };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       
+      {/* MODAL DE ALERTA PERSONALIZADO */}
+      {alertData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/30 dark:bg-black/70 backdrop-blur-md transition-all animate-fade-in">
+          <div className="w-full max-w-md bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl rounded-3xl border border-white/80 dark:border-gray-700/60 p-6 shadow-2xl space-y-4 text-center">
+            <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center border shadow-sm ${
+              alertData.type === "error" ? "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400" :
+              alertData.type === "warning" ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400" :
+              "bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400"
+            }`}>
+              {alertData.type === "success" ? <CheckCircleIcon className="w-7 h-7" /> : <ExclamationTriangleIcon className="w-7 h-7" />}
+            </div>
+            <div>
+              <h3 className="text-lg font-extrabold text-gray-900 dark:text-white">{alertData.title}</h3>
+              <p className="mt-2 text-sm font-medium text-gray-600 dark:text-gray-300 leading-relaxed">{alertData.message}</p>
+            </div>
+            <div className="pt-2">
+              <button onClick={() => setAlertData(null)} className="w-full py-3 rounded-xl font-bold text-sm text-white bg-blue-600/90 hover:bg-blue-600 shadow-md shadow-blue-500/20 backdrop-blur-sm transition-all">
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMACIÓN DE ELIMINACIÓN */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md transition-all animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-3xl border border-red-200 dark:border-red-900/50 p-6 shadow-2xl space-y-5 text-center">
+            <div className="w-16 h-16 rounded-full mx-auto flex items-center justify-center bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
+              <TrashIcon className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-gray-900 dark:text-white">¿Eliminar registro?</h3>
+              <p className="mt-3 text-sm font-medium text-gray-600 dark:text-gray-300 leading-relaxed">
+                Estás a punto de eliminar <strong>{confirmDelete.name}</strong>. Esta acción no se puede deshacer.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 pt-4">
+              <button onClick={() => setConfirmDelete(null)} className="py-3 rounded-xl font-bold text-sm text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all">
+                Cancelar
+              </button>
+              <button onClick={executeDelete} className="py-3 rounded-xl font-bold text-sm text-white bg-red-600 hover:bg-red-700 shadow-md shadow-red-500/20 transition-all active:scale-[0.98]">
+                Sí, Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Encabezado */}
       <div className="p-6 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl shadow-[0_8px_32px_0_rgba(31,38,135,0.05)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.2)] border border-white/60 dark:border-gray-700/50 transition-all">
         <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white sm:text-3xl drop-shadow-sm">
@@ -233,7 +319,7 @@ export default function ConfiguracionPage() {
                         <PencilIcon className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDeleteCategory(cat.id, cat.name)}
+                        onClick={() => setConfirmDelete({ id: cat.id, name: cat.name, type: "category" })}
                         className="p-1.5 rounded-lg text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900/40 transition-colors"
                         title="Eliminar"
                       >
@@ -307,7 +393,7 @@ export default function ConfiguracionPage() {
                         <PencilIcon className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDeleteLocation(loc.id, loc.name)}
+                        onClick={() => setConfirmDelete({ id: loc.id, name: loc.name, type: "location" })}
                         className="p-1.5 rounded-lg text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900/40 transition-colors"
                         title="Eliminar"
                       >
@@ -431,6 +517,22 @@ function TrashIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+    </svg>
+  );
+}
+
+function CheckCircleIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+}
+
+function ExclamationTriangleIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2.25m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
     </svg>
   );
 }
