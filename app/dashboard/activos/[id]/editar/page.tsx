@@ -155,6 +155,8 @@ export default function EditarActivoPage({
         message: "Falta el ID del cliente. Recarga la página.",
         type: "error",
       });
+      // P1.8 FIX: Aseguramos desactivar el estado de carga antes del return temprano
+      setIsSaving(false);
       return;
     }
 
@@ -166,10 +168,10 @@ export default function EditarActivoPage({
       // 1. Si hay una nueva imagen, subirla a Supabase Storage
       if (imageFile) {
         const fileExt = imageFile.name.split(".").pop();
-        const fileName = `${clientId}-${Date.now()}-edit.${fileExt}`;
+        const fileName = `${clientId}/${Date.now()}-edit.${fileExt}`; // Separamos por cliente
 
         const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("assets")
+          .from("assets") // Asegúrate de que el bucket 'assets' exista y sea público en Supabase
           .upload(fileName, imageFile, { upsert: true });
 
         if (uploadError) throw uploadError;
@@ -213,8 +215,8 @@ export default function EditarActivoPage({
         message: errorMessage,
         type: "error",
       });
-    } finally {
-      setIsSaving(false);
+      // P1.8 FIX: Reactivar el botón solo si hubo error. Si fue exitoso, dejamos "Guardando..." hasta que cambie de ruta.
+      setIsSaving(false); 
     }
   };
 
