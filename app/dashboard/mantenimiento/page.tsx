@@ -214,7 +214,7 @@ export default function MantenimientoPage() {
       
       {/* P0.4: MODAL CONFIRMAR BAJA DEFINITIVA */}
       {isConfirmBajaOpen && selectedLogForResolve && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/50 dark:bg-black/80 backdrop-blur-md transition-all animate-fade-in">
+        <div className="fixed inset-0 z-200 flex items-center justify-center p-4 bg-slate-900/50 dark:bg-black/80 backdrop-blur-md transition-all animate-fade-in">
           <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-3xl border border-red-200 dark:border-red-900/50 p-6 shadow-2xl space-y-5 text-center">
             
             <div className="w-16 h-16 rounded-full mx-auto flex items-center justify-center bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
