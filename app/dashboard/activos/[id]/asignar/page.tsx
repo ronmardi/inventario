@@ -52,6 +52,9 @@ export default function AsignarActivoPage({
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alertData, setAlertData] = useState<AlertState | null>(null);
+  
+  // P0.4: Modal de confirmación para Baja Definitiva
+  const [isConfirmBajaOpen, setIsConfirmBajaOpen] = useState(false);
 
   // Campos de formulario para Asignación
   const [assignedTo, setAssignedTo] = useState("");
@@ -130,7 +133,6 @@ export default function AsignarActivoPage({
     loadData();
   }, [assetId, supabase, router]);
 
-  // Procesar Nueva Asignación Atómica (RPC)
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!asset || !assignedTo) return;
@@ -139,7 +141,7 @@ export default function AsignarActivoPage({
 
     const { error: rpcError } = await supabase.rpc("procesar_asignacion_atomica", {
       p_asset_id: asset.id,
-      p_assigned_to_name: assignedTo, // Pasamos el ID (la tabla relacional usa UUID)
+      p_assigned_to_name: assignedTo,
       p_action: "asignar",
       p_notes: `[Entrega: ${conditionOut}] ${notesOut}`,
     });
@@ -158,16 +160,24 @@ export default function AsignarActivoPage({
     router.refresh();
   };
 
-  // Procesar Devolución (Sin RPC porque hay que actualizar registro existente, no insertar)
-  // Como 'procesar_asignacion_atomica' inserta, para la devolución actualizamos la bitácora abierta
-  // y actualizamos el estado del activo.
-  const handleReturn = async (e: React.FormEvent) => {
+  const handleReturnIntent = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!asset || !activeAssignment) return;
+    
+    // Si eligen "baja", abrimos el modal en lugar de enviar directo
+    if (nextStatus === "baja") {
+      setIsConfirmBajaOpen(true);
+      return;
+    }
+    
+    // Si no es baja, procedemos con la devolución normal
+    executeReturn();
+  };
 
+  const executeReturn = async () => {
+    if (!asset || !activeAssignment) return;
+    setIsConfirmBajaOpen(false); // Cerramos el modal si estaba abierto
     setIsSubmitting(true);
 
-    // 1. Finalizar el registro en asset_assignments
     const { error: returnError } = await supabase
       .from("asset_assignments")
       .update({
@@ -187,7 +197,6 @@ export default function AsignarActivoPage({
       return;
     }
 
-    // 2. Actualizar el estado del activo (disponible o en_reparacion)
     const { error: assetError } = await supabase
       .from("assets")
       .update({ status: nextStatus, updated_at: new Date().toISOString() })
@@ -236,7 +245,47 @@ export default function AsignarActivoPage({
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       
-      {/* MODAL DE ALERTA PERSONALIZADO */}
+      {/* P0.4: MODAL CONFIRMAR BAJA DEFINITIVA */}
+      {isConfirmBajaOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/50 dark:bg-black/80 backdrop-blur-md transition-all animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-3xl border border-red-200 dark:border-red-900/50 p-6 shadow-2xl space-y-5 text-center">
+            
+            <div className="w-16 h-16 rounded-full mx-auto flex items-center justify-center bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
+              <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-8 h-8">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+
+            <div>
+              <h3 className="text-xl font-black text-gray-900 dark:text-white">
+                ¿Estás absolutamente seguro?
+              </h3>
+              <p className="mt-3 text-sm font-medium text-gray-600 dark:text-gray-300 leading-relaxed">
+                Estás a punto de registrar la devolución y <strong>Dar de Baja Definitiva</strong> el activo <span className="font-bold text-red-600 dark:text-red-400">{asset.asset_tag}</span>. 
+                <br/><br/>
+                Esta acción sacará el equipo del inventario operativo permanentemente.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-4">
+              <button
+                onClick={() => setIsConfirmBajaOpen(false)}
+                className="py-3 rounded-xl font-bold text-sm text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={executeReturn}
+                className="py-3 rounded-xl font-bold text-sm text-white bg-red-600 hover:bg-red-700 shadow-md shadow-red-500/20 transition-all active:scale-[0.98]"
+              >
+                Sí, Dar de Baja
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE ALERTA PERSONALIZADO (Error/Éxito) */}
       {alertData && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/30 dark:bg-black/70 backdrop-blur-md transition-all animate-fade-in">
           <div className="w-full max-w-md bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl rounded-3xl border border-white/80 dark:border-gray-700/60 p-6 shadow-2xl space-y-4 text-center">
@@ -297,7 +346,7 @@ export default function AsignarActivoPage({
 
       {/* CASO A: EL EQUIPO ESTÁ ASIGNADO -> REGISTRAR DEVOLUCIÓN */}
       {asset.status === "asignado" ? (
-        <form onSubmit={handleReturn} className="space-y-6">
+        <form onSubmit={handleReturnIntent} className="space-y-6">
           <GlassCard>
             {/* Ficha de Asignación Actual */}
             <div className="p-5 bg-purple-500/10 border border-purple-500/30 rounded-2xl space-y-2 mb-6">

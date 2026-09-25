@@ -39,6 +39,9 @@ export default function MantenimientoPage() {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [selectedLogForResolve, setSelectedLogForResolve] = useState<MaintenanceLog | null>(null);
   const [alertData, setAlertData] = useState<AlertState | null>(null);
+  
+  // P0.4: Modal de confirmación para Baja Definitiva en Mantenimiento
+  const [isConfirmBajaOpen, setIsConfirmBajaOpen] = useState(false);
 
   // Formulario Reportar
   const [selectedAssetId, setSelectedAssetId] = useState("");
@@ -56,9 +59,6 @@ export default function MantenimientoPage() {
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-
-    // Ya no guardamos clientId ni currentUserId en el estado local 
-    // porque la función RPC maneja internamente la seguridad de RLS mediante auth.uid()
 
     const { data: profile } = await supabase
       .from("profiles")
@@ -101,17 +101,15 @@ export default function MantenimientoPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
-  // Handler: Crear nuevo reporte de mantenimiento usando RPC (Atómico)
   const handleCreateReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAssetId || !issueDescription) return;
 
     setIsSubmitting(true);
 
-    // Llamada a la función RPC de Postgres
     const { error: rpcError } = await supabase.rpc("registrar_mantenimiento_atomico", {
       p_asset_id: selectedAssetId,
-      p_title: `Reporte de Falla: ${issueDescription.substring(0, 30)}...`, // Título corto autogenerado
+      p_title: `Reporte de Falla: ${issueDescription.substring(0, 30)}...`,
       p_description: issueDescription,
       p_cost: estimatedCost ? parseFloat(estimatedCost) : 0,
       p_maintenance_status: "en_reparacion",
@@ -127,7 +125,6 @@ export default function MantenimientoPage() {
       return;
     }
 
-    // Limpiar formulario y recargar datos
     setSelectedAssetId("");
     setIssueDescription("");
     setEstimatedCost("");
@@ -143,16 +140,22 @@ export default function MantenimientoPage() {
     loadData();
   };
 
-  // Handler: Resolver mantenimiento usando RPC (Atómico)
-  const handleResolveMaintenance = async (e: React.FormEvent) => {
+  const handleResolveIntent = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedLogForResolve || !selectedLogForResolve.assets) return;
+    
+    if (returnToStatus === "baja") {
+      setIsConfirmBajaOpen(true);
+      return;
+    }
+    
+    executeResolveMaintenance();
+  };
 
+  const executeResolveMaintenance = async () => {
+    if (!selectedLogForResolve || !selectedLogForResolve.assets) return;
+    setIsConfirmBajaOpen(false);
     setIsSubmitting(true);
 
-    // Nota: Reutilizamos la RPC de registrar pasándole el estatus 'resuelto' 
-    // y el costo final, lo que actualizará el activo pero requiere actualizar el log original.
-    // Para resolver limpiamente la bitácora existente y no crear una nueva:
     const { error: logUpdateError } = await supabase
       .from("maintenance_logs")
       .update({
@@ -172,7 +175,6 @@ export default function MantenimientoPage() {
       return;
     }
 
-    // Actualizamos el estado del activo (que ya sabíamos que debía ser el retorno seguro)
     const { error: assetUpdateError } = await supabase
       .from("assets")
       .update({ 
@@ -182,8 +184,6 @@ export default function MantenimientoPage() {
       .eq("id", selectedLogForResolve.assets.id);
 
     if (assetUpdateError) {
-      // Como esto no es una RPC única (idealmente haríamos otra RPC resolver_mantenimiento_atomico),
-      // mostramos error si algo falla en el paso 2
       setAlertData({
         title: "Error de Sincronización",
         message: "Se actualizó la bitácora pero el activo no cambió de estado.",
@@ -212,6 +212,46 @@ export default function MantenimientoPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       
+      {/* P0.4: MODAL CONFIRMAR BAJA DEFINITIVA */}
+      {isConfirmBajaOpen && selectedLogForResolve && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/50 dark:bg-black/80 backdrop-blur-md transition-all animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-3xl border border-red-200 dark:border-red-900/50 p-6 shadow-2xl space-y-5 text-center">
+            
+            <div className="w-16 h-16 rounded-full mx-auto flex items-center justify-center bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
+              <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-8 h-8">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+
+            <div>
+              <h3 className="text-xl font-black text-gray-900 dark:text-white">
+                ¿Confirmas dar de baja este activo?
+              </h3>
+              <p className="mt-3 text-sm font-medium text-gray-600 dark:text-gray-300 leading-relaxed">
+                Estás finalizando la reparación indicando que el equipo <span className="font-bold text-red-600 dark:text-red-400">{selectedLogForResolve.assets?.asset_tag}</span> está inoperativo. 
+                <br/><br/>
+                El equipo pasará a estado <strong>Baja Definitiva</strong> y no podrá ser reasignado.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-4">
+              <button
+                onClick={() => setIsConfirmBajaOpen(false)}
+                className="py-3 rounded-xl font-bold text-sm text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={executeResolveMaintenance}
+                className="py-3 rounded-xl font-bold text-sm text-white bg-red-600 hover:bg-red-700 shadow-md shadow-red-500/20 transition-all active:scale-[0.98]"
+              >
+                Sí, Dar de Baja
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL DE ALERTA PERSONALIZADO */}
       {alertData && (
         <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/30 dark:bg-black/70 backdrop-blur-md transition-all animate-fade-in">
@@ -491,7 +531,7 @@ export default function MantenimientoPage() {
               Finalizar Reparación de {selectedLogForResolve.assets?.name} ✅
             </h3>
             
-            <form onSubmit={handleResolveMaintenance} className="space-y-4">
+            <form onSubmit={handleResolveIntent} className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1.5">
                   Notas de Solución / Reparación *
@@ -560,41 +600,17 @@ export default function MantenimientoPage() {
 
 // Iconos SVG
 function PlusIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-    </svg>
-  );
+  return <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>;
 }
-
 function WrenchIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.827M15.25 15.25l-2.062-2.062M13 13l-2.062-2.062M10.875 10.875a5.25 5.25 0 11-7.425-7.424 5.25 5.25 0 017.425 7.424z" />
-    </svg>
-  );
+  return <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.827M15.25 15.25l-2.062-2.062M13 13l-2.062-2.062M10.875 10.875a5.25 5.25 0 11-7.425-7.424 5.25 5.25 0 017.425 7.424z" /></svg>;
 }
-
 function CheckCircleIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  );
+  return <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
 }
-
 function CurrencyDollarIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-9h6a2.25 2.25 0 010 4.5H9a2.25 2.25 0 000 4.5h6" />
-    </svg>
-  );
+  return <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-9h6a2.25 2.25 0 010 4.5H9a2.25 2.25 0 000 4.5h6" /></svg>;
 }
-
 function ExclamationTriangleIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-    </svg>
-  );
+  return <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>;
 }
