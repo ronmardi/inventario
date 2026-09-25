@@ -52,12 +52,20 @@ export default async function ActivosPage({
     )
     .order("created_at", { ascending: false });
 
-  // Filtro de búsqueda por texto sanitizado (protección contra PostgREST injection)
+  // Filtro de búsqueda por texto sanitizado (P0.5: Protección contra PostgREST injection)
   if (searchQuery) {
-    const safeQuery = searchQuery.replace(/[,.()]/g, "").trim();
-    if (safeQuery) {
+    // Escapar solo los caracteres que rompen el parser de PostgREST, manteniendo el sentido de la búsqueda
+    const escapedQuery = searchQuery
+      .replace(/\\/g, "\\\\") // Escapar barras invertidas primero
+      .replace(/"/g, '\\"') // Escapar comillas dobles
+      .replace(/%/g, "\\%") // Escapar porcentajes literales para evitar wildcards no deseados
+      .replace(/_/g, "\\_") // Escapar guiones bajos literales
+      .trim();
+
+    if (escapedQuery) {
+      // Uso de identificadores exactos y escapes seguros
       query = query.or(
-        `name.ilike.%${safeQuery}%,asset_tag.ilike.%${safeQuery}%,serial_number.ilike.%${safeQuery}%`
+        `name.ilike.%${escapedQuery}%,asset_tag.ilike.%${escapedQuery}%,serial_number.ilike.%${escapedQuery}%`
       );
     }
   }
