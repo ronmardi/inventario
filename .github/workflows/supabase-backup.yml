@@ -1,0 +1,30 @@
+name: Respaldo Automático Supabase
+
+on:
+  schedule:
+    # Se ejecuta todos los días a las 03:00 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch: # Permite ejecutar el respaldo manualmente desde GitHub
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instalar cliente de PostgreSQL
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Ejecutar pg_dump y crear respaldo
+        env:
+          # Necesitarás configurar este secreto en tu repositorio de GitHub
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          echo "Iniciando respaldo de la base de datos..."
+          pg_dump "$DB_URL" -F c -f inventario_backup_$(date +'%Y%m%d').dump
+          echo "Respaldo completado."
+
+      - name: Guardar archivo como artefacto en GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-backup-${{ github.run_id }}
+          path: '*.dump'
+          retention-days: 7 # GitHub guardará el archivo por 7 días
