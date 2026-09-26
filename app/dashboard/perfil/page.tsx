@@ -197,10 +197,11 @@ export default function PerfilPage() {
                 id="email"
                 name="email"
                 type="email"
+                autoComplete="email"
                 value={email}
                 disabled
                 className="w-full px-4 py-3 rounded-xl bg-gray-100/50 dark:bg-gray-800/30 border border-transparent text-gray-500 dark:text-gray-400 text-sm outline-none cursor-not-allowed"
-              />
+               />
             </div>
 
             {/* Rol en el Sistema (Solo Lectura) */}
