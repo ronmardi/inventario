@@ -170,9 +170,9 @@ export default function PerfilPage() {
             
             {/* Nombre Completo */}
             <div className="md:col-span-2">
-              <label htmlFor="fullName" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
-                Nombre Completo
-              </label>
+              <p className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+                Rol en el Sistema
+              </p>
               <input
                 id="fullName"
                 type="text"
