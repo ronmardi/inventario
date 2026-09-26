@@ -170,9 +170,9 @@ export default function PerfilPage() {
             
             {/* Nombre Completo */}
             <div className="md:col-span-2">
-              <p className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
-                Rol en el Sistema
-              </p>
+              <label htmlFor="fullName" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+                Nombre Completo
+              </label>
               <input
                 id="fullName"
                 type="text"
@@ -202,9 +202,9 @@ export default function PerfilPage() {
 
             {/* Rol en el Sistema (Solo Lectura) */}
             <div>
-              <label htmlFor="role" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+              <p className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Rol en el Sistema
-              </label>
+              </p>
               <div className="w-full px-4 py-3 rounded-xl bg-gray-100/50 dark:bg-gray-800/30 border border-transparent flex items-center">
                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border backdrop-blur-sm ${
                   role === 'admin' || role === 'superadmin'
