@@ -116,9 +116,11 @@ export default function DashboardLayout({
           isSidebarCollapsed ? "w-20" : "w-64"
         }`}
       >
-        <div className="flex h-16 shrink-0 items-center justify-center px-4 bg-slate-950/50 border-b border-slate-800/50 transition-all">
+        {/* FIX: Contenedor más alto (h-20) */}
+        <div className="flex h-20 shrink-0 items-center justify-center px-4 bg-slate-950/50 border-b border-slate-800/50 transition-all">
           {logoUrl ? (
-            <div className={`relative h-8 transition-all duration-300 ${isSidebarCollapsed ? "w-10" : "w-full"}`}>
+            // FIX: Logo más grande (h-14)
+            <div className={`relative transition-all duration-300 ${isSidebarCollapsed ? "h-10 w-10" : "h-14 w-full"}`}>
                <Image src={logoUrl} alt="Logo" fill className={`object-contain ${isSidebarCollapsed ? "object-center" : "object-left"}`} unoptimized />
             </div>
           ) : (
@@ -130,18 +132,22 @@ export default function DashboardLayout({
           )}
         </div>
         
-        {/* Botón para colapsar/expandir */}
+        {/* FIX: Botón subido a top-7 y con borde para resaltar */}
         <button
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="absolute -right-3 top-20 bg-blue-600 hover:bg-blue-500 text-white p-1 rounded-full shadow-lg z-50 transition-colors"
+          className="absolute -right-3.5 top-7 bg-blue-600 hover:bg-blue-500 text-white p-1.5 rounded-full shadow-lg z-50 transition-colors border-2 border-slate-900"
         >
           <ChevronIcon className={`h-4 w-4 transition-transform duration-300 ${isSidebarCollapsed ? "rotate-180" : ""}`} />
         </button>
 
-        <div className="flex flex-1 flex-col overflow-y-auto">
-          <nav className="flex-1 space-y-2 px-3 py-4">
+        <div className="flex flex-1 flex-col overflow-y-auto mt-2">
+          <nav className="flex-1 space-y-2 px-3 py-2">
             {navigation.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              // FIX BUG INICIO: Ahora verifica si es exactamente /dashboard o si es otra ruta
+              const isActive = item.href === "/dashboard" 
+                ? pathname === "/dashboard" 
+                : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                
               return (
                 <Link
                   key={item.name}
@@ -172,7 +178,7 @@ export default function DashboardLayout({
             <div className="relative flex w-full max-w-xs flex-1 flex-col bg-slate-900 pt-5 pb-4">
               <div className="flex items-center px-4 mb-4">
                 {logoUrl ? (
-                  <div className="relative h-8 w-32">
+                  <div className="relative h-10 w-32">
                     <Image src={logoUrl} alt="Logo" fill className="object-contain object-left" unoptimized />
                   </div>
                 ) : (
@@ -184,7 +190,11 @@ export default function DashboardLayout({
               </div>
               <nav className="mt-5 space-y-1 px-2">
                 {navigation.map((item) => {
-                  const isActive = pathname === item.href;
+                  // FIX BUG INICIO (Móvil)
+                  const isActive = item.href === "/dashboard" 
+                    ? pathname === "/dashboard" 
+                    : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                    
                   return (
                     <Link key={item.name} href={item.href} onClick={() => setIsMobileMenuOpen(false)} className={`group flex items-center px-3 py-2 text-base font-medium rounded-md ${isActive ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`}>
                       <item.icon className="mr-4 h-6 w-6 shrink-0" />
