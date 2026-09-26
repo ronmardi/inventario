@@ -26,6 +26,7 @@ const traducirError = (mensaje: string) => {
   if (msj.includes("invalid login credentials")) return "El correo o la contraseña son incorrectos.";
   if (msj.includes("email not confirmed")) return "Debes confirmar tu correo electrónico.";
   if (msj.includes("database error")) return "Error interno al crear perfil. (Revisa tu base de datos).";
+  if (msj.includes("rate limit")) return "Demasiados intentos. Por favor espera unos minutos.";
   return "Ocurrió un error inesperado. Por favor, intenta de nuevo.";
 };
 
@@ -46,6 +47,10 @@ export default function LoginPage() {
   
   const [isSignUp, setIsSignUp] = useState(false);
 
+  // NUEVO: Estados para recuperar contraseña
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isResetSent, setIsResetSent] = useState(false);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -54,8 +59,6 @@ export default function LoginPage() {
     setIsGoogleLoading(true);
     setError(null);
     
-    // Obtenemos la URL base (http://localhost:3000 o https://tu-dominio.com)
-    // El 'callback' se encarga de crear la sesión de Supabase
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     
     const { error } = await supabase.auth.signInWithOAuth({
@@ -75,17 +78,39 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setIsResetSent(false);
 
     try {
+      // 1. Flujo de Recuperación de Contraseña
+      if (isForgotPassword) {
+        if (!email) {
+          setError("Por favor, ingresa tu correo electrónico.");
+          setIsLoading(false);
+          return;
+        }
+
+        const origin = typeof window !== 'undefined' ? window.location.origin : '';
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${origin}/actualizar-password`,
+        });
+
+        if (resetError) {
+          setError(traducirError(resetError.message));
+        } else {
+          setIsResetSent(true);
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      // 2. Flujo de Registro
       if (isSignUp) {
-        // Validar que haya ingresado el nombre de la empresa
         if (!companyName.trim()) {
           setError("El nombre de la empresa es obligatorio para registrarse.");
           setIsLoading(false);
           return;
         }
 
-        // Flujo de Registro
         const { error: signUpError } = await supabase.auth.signUp({ 
           email, 
           password 
@@ -97,7 +122,6 @@ export default function LoginPage() {
           return;
         }
 
-        // Crear la empresa y enlazar al usuario como superadmin usando la RPC segura
         const { error: rpcError } = await supabase.rpc("registrar_empresa_inicial", {
           p_company_name: companyName.trim()
         });
@@ -109,7 +133,7 @@ export default function LoginPage() {
         }
 
       } else {
-        // Flujo de Inicio de Sesión
+        // 3. Flujo de Inicio de Sesión Normal
         const { error: signInError } = await supabase.auth.signInWithPassword({ 
           email, 
           password 
@@ -122,7 +146,6 @@ export default function LoginPage() {
         }
       }
 
-      // Validar si realmente hay sesión antes de redirigir (evita el bucle infinito)
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         setError("No se pudo iniciar sesión. Verifica tus datos.");
@@ -130,11 +153,9 @@ export default function LoginPage() {
         return;
       }
 
-      // Si todo sale bien, redirigir al panel
       router.push("/dashboard");
       router.refresh();
       
-      // Seguro para apagar el botón de carga por si Next.js tarda en cambiar de página
       setTimeout(() => setIsLoading(false), 2000);
 
     } catch (err) {
@@ -192,138 +213,181 @@ export default function LoginPage() {
           Inventario TI
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-300">
-          {isSignUp ? "Crea una cuenta nueva para tu organización" : "Ingresa tus credenciales para continuar"}
+          {isForgotPassword 
+            ? "Te enviaremos un enlace para recuperar tu acceso"
+            : isSignUp 
+              ? "Crea una cuenta nueva para tu organización" 
+              : "Ingresa tus credenciales para continuar"}
         </p>
       </div>
 
       <div className="relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl py-8 px-4 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] sm:rounded-3xl sm:px-10 border border-white/60 dark:border-gray-700/50 transition-all duration-300">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            
-            {error && (
-              <div className="bg-red-50/80 dark:bg-red-900/40 backdrop-blur-md border-l-4 border-red-500 p-4 rounded-lg animate-fade-in">
-                <p className="text-sm text-red-700 dark:text-red-300 font-medium">{error}</p>
+          
+          {/* Mensaje de Éxito al enviar el enlace */}
+          {isResetSent ? (
+            <div className="text-center animate-fade-in space-y-4">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/30">
+                <svg className="h-6 w-6 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
               </div>
-            )}
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">¡Enlace enviado!</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Revisa la bandeja de entrada de <strong>{email}</strong> y haz clic en el enlace para cambiar tu contraseña.
+              </p>
+              <button 
+                onClick={() => { setIsForgotPassword(false); setIsResetSent(false); }} 
+                className="mt-4 text-sm font-bold text-blue-600 hover:text-blue-500 dark:text-blue-400"
+              >
+                Volver a Iniciar Sesión
+              </button>
+            </div>
+          ) : (
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              
+              {error && (
+                <div className="bg-red-50/80 dark:bg-red-900/40 backdrop-blur-md border-l-4 border-red-500 p-4 rounded-lg animate-fade-in">
+                  <p className="text-sm text-red-700 dark:text-red-300 font-medium">{error}</p>
+                </div>
+              )}
 
-            {/* Renderizado Condicional del Nombre de la Empresa */}
-            {isSignUp && (
-              <div className="animate-fade-in">
-                <label htmlFor="companyName" className="block text-sm font-medium text-gray-800 dark:text-gray-200">
-                  Nombre de tu Empresa
+              {/* Renderizado Condicional del Nombre de la Empresa */}
+              {!isForgotPassword && isSignUp && (
+                <div className="animate-fade-in">
+                  <label htmlFor="companyName" className="block text-sm font-medium text-gray-800 dark:text-gray-200">
+                    Nombre de tu Empresa
+                  </label>
+                  <div className="mt-1">
+                    <input
+                      id="companyName"
+                      name="companyName"
+                      type="text"
+                      required={isSignUp}
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      className="appearance-none block w-full px-4 py-3 border border-white/50 dark:border-gray-600/50 rounded-xl shadow-inner placeholder-gray-400 text-gray-900 dark:text-white bg-white/60 dark:bg-gray-800/60 focus:bg-white dark:focus:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent sm:text-sm transition-all"
+                      placeholder="Ej. TechCorp Ltda."
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-800 dark:text-gray-200">
+                  Correo electrónico
                 </label>
                 <div className="mt-1">
                   <input
-                    id="companyName"
-                    name="companyName"
-                    type="text"
-                    required={isSignUp}
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="appearance-none block w-full px-4 py-3 border border-white/50 dark:border-gray-600/50 rounded-xl shadow-inner placeholder-gray-400 text-gray-900 dark:text-white bg-white/60 dark:bg-gray-800/60 focus:bg-white dark:focus:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent sm:text-sm transition-all"
-                    placeholder="Ej. TechCorp Ltda."
+                    placeholder="ejemplo@empresa.com"
                   />
                 </div>
               </div>
-            )}
 
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-800 dark:text-gray-200">
-                Correo electrónico
-              </label>
-              <div className="mt-1">
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none block w-full px-4 py-3 border border-white/50 dark:border-gray-600/50 rounded-xl shadow-inner placeholder-gray-400 text-gray-900 dark:text-white bg-white/60 dark:bg-gray-800/60 focus:bg-white dark:focus:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent sm:text-sm transition-all"
-                  placeholder="ejemplo@empresa.com"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-800 dark:text-gray-200">
-                Contraseña
-              </label>
-              <div className="mt-1">
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete={isSignUp ? "new-password" : "current-password"}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none block w-full px-4 py-3 border border-white/50 dark:border-gray-600/50 rounded-xl shadow-inner placeholder-gray-400 text-gray-900 dark:text-white bg-white/60 dark:bg-gray-800/60 focus:bg-white dark:focus:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent sm:text-sm transition-all"
-                  placeholder="••••••••"
-                />
-              </div>
-              {isSignUp && (
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  La contraseña debe tener al menos 6 caracteres.
-                </p>
+              {!isForgotPassword && (
+                <div className="animate-fade-in">
+                  <div className="flex items-center justify-between mb-1">
+                    <label htmlFor="password" className="block text-sm font-medium text-gray-800 dark:text-gray-200">
+                      Contraseña
+                    </label>
+                    {!isSignUp && (
+                      <button 
+                        type="button" 
+                        onClick={() => { setIsForgotPassword(true); setError(null); }} 
+                        className="text-xs font-bold text-blue-600 hover:text-blue-500 dark:text-blue-400 transition-colors"
+                      >
+                        ¿Olvidaste tu contraseña?
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    autoComplete={isSignUp ? "new-password" : "current-password"}
+                    required={!isForgotPassword}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="appearance-none block w-full px-4 py-3 border border-white/50 dark:border-gray-600/50 rounded-xl shadow-inner placeholder-gray-400 text-gray-900 dark:text-white bg-white/60 dark:bg-gray-800/60 focus:bg-white dark:focus:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent sm:text-sm transition-all"
+                    placeholder="••••••••"
+                  />
+                  {isSignUp && (
+                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                      La contraseña debe tener al menos 6 caracteres.
+                    </p>
+                  )}
+                </div>
               )}
-            </div>
 
-            <div className="pt-2">
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={isLoading || isGoogleLoading}
+                  className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-md text-sm font-bold text-white bg-blue-600/90 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-900 disabled:opacity-70 disabled:cursor-not-allowed transition-all backdrop-blur-sm"
+                >
+                  {isLoading ? (
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : isForgotPassword ? (
+                    "Enviar Enlace"
+                  ) : isSignUp ? (
+                    "Crear Cuenta"
+                  ) : (
+                    "Iniciar Sesión"
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Opciones Adicionales y SSO */}
+          {!isForgotPassword && !isResetSent && (
+            <>
+              <div className="relative my-6 animate-fade-in">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300/50 dark:border-gray-600/50"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-[#f4f7fc] dark:bg-[#161e31] text-gray-500 rounded-full font-medium">O continúa con</span>
+                </div>
+              </div>
+
               <button
-                type="submit"
+                onClick={handleGoogleLogin}
                 disabled={isLoading || isGoogleLoading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-md text-sm font-bold text-white bg-blue-600/90 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-900 disabled:opacity-70 disabled:cursor-not-allowed transition-all backdrop-blur-sm"
+                type="button"
+                className="w-full animate-fade-in flex items-center justify-center px-4 py-3 rounded-xl font-bold text-sm text-gray-700 dark:text-gray-200 bg-white/60 dark:bg-gray-800/60 hover:bg-white dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 shadow-sm backdrop-blur-sm transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
-                {isLoading ? (
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                {isGoogleLoading ? (
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-500 dark:text-gray-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                 ) : (
-                  isSignUp ? "Crear Cuenta" : "Iniciar Sesión"
+                  <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                  </svg>
                 )}
+                {isGoogleLoading ? "Conectando..." : "Continuar con Google"}
               </button>
-            </div>
-          </form>
-
-          {/* Separador */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300/50 dark:border-gray-600/50"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-[#f4f7fc] dark:bg-[#161e31] text-gray-500 rounded-full font-medium">O continúa con</span>
-            </div>
-          </div>
-
-          {/* Botón de Google SSO */}
-          <button
-            onClick={handleGoogleLogin}
-            disabled={isLoading || isGoogleLoading}
-            type="button"
-            className="w-full flex items-center justify-center px-4 py-3 rounded-xl font-bold text-sm text-gray-700 dark:text-gray-200 bg-white/60 dark:bg-gray-800/60 hover:bg-white dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 shadow-sm backdrop-blur-sm transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:scale-100"
-          >
-            {isGoogleLoading ? (
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-500 dark:text-gray-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            ) : (
-              <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-              </svg>
-            )}
-            {isGoogleLoading ? "Conectando..." : "Continuar con Google"}
-          </button>
+            </>
+          )}
 
           <div className="mt-6 text-center">
             <button
               onClick={() => {
+                setIsForgotPassword(false);
                 setIsSignUp(!isSignUp);
                 setError(null);
                 setPassword("");
@@ -331,9 +395,11 @@ export default function LoginPage() {
               }}
               className="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
             >
-              {isSignUp 
-                ? "¿Ya tienes cuenta? Inicia sesión aquí" 
-                : "¿No tienes cuenta? Regístrate gratis"}
+              {isForgotPassword 
+                ? "Regresar a Iniciar Sesión" 
+                : isSignUp 
+                  ? "¿Ya tienes cuenta? Inicia sesión aquí" 
+                  : "¿No tienes cuenta? Regístrate gratis"}
             </button>
           </div>
         </div>
