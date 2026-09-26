@@ -287,6 +287,7 @@ export default function EditarActivoPage({
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        
         {/* Fotografía del Equipo */}
         <GlassCard title="Fotografía del Producto">
           <div className="flex items-center space-x-6">
@@ -304,9 +305,13 @@ export default function EditarActivoPage({
               )}
             </div>
             <div className="space-y-2">
-              <label className="cursor-pointer inline-block px-4 py-2.5 rounded-xl bg-blue-600/90 border border-blue-500/60 text-sm font-bold text-white shadow-sm hover:bg-blue-600 transition-all">
+              <label 
+                htmlFor="imageUpload"
+                className="cursor-pointer inline-block px-4 py-2.5 rounded-xl bg-blue-600/90 border border-blue-500/60 text-sm font-bold text-white shadow-sm hover:bg-blue-600 transition-all"
+              >
                 Cambiar Foto
                 <input
+                  id="imageUpload"
                   type="file"
                   accept="image/*"
                   className="hidden"
@@ -325,12 +330,14 @@ export default function EditarActivoPage({
         {/* Datos Principales */}
         <GlassCard>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
             {/* Categoría */}
             <div>
-              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+              <label htmlFor="categoryId" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Categoría
               </label>
               <select
+                id="categoryId"
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 text-sm outline-none transition-all shadow-inner"
@@ -346,10 +353,11 @@ export default function EditarActivoPage({
 
             {/* Etiqueta ID */}
             <div>
-              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+              <label htmlFor="assetTag" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Etiqueta ID / Código *
               </label>
               <input
+                id="assetTag"
                 type="text"
                 value={assetTag}
                 onChange={(e) => setAssetTag(e.target.value)}
@@ -360,10 +368,11 @@ export default function EditarActivoPage({
 
             {/* Nombre */}
             <div>
-              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+              <label htmlFor="name" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Nombre Corto *
               </label>
               <input
+                id="name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -374,10 +383,11 @@ export default function EditarActivoPage({
 
             {/* Modelo */}
             <div>
-              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+              <label htmlFor="model" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Marca / Modelo
               </label>
               <input
+                id="model"
                 type="text"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
@@ -387,10 +397,11 @@ export default function EditarActivoPage({
 
             {/* Número de Serie */}
             <div>
-              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+              <label htmlFor="serialNumber" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Número de Serie (S/N)
               </label>
               <input
+                id="serialNumber"
                 type="text"
                 value={serialNumber}
                 onChange={(e) => setSerialNumber(e.target.value)}
@@ -400,10 +411,11 @@ export default function EditarActivoPage({
 
             {/* Ubicación */}
             <div>
-              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+              <label htmlFor="locationId" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Ubicación Física
               </label>
               <select
+                id="locationId"
                 value={locationId}
                 onChange={(e) => setLocationId(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/50"
@@ -419,10 +431,11 @@ export default function EditarActivoPage({
 
             {/* Estado */}
             <div>
-              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+              <label htmlFor="status" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Estado Actual
               </label>
               <select
+                id="status"
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/50"
@@ -436,10 +449,11 @@ export default function EditarActivoPage({
 
             {/* Fecha de compra */}
             <div>
-              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+              <label htmlFor="purchaseDate" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Fecha de Compra
               </label>
               <input
+                id="purchaseDate"
                 type="date"
                 value={purchaseDate}
                 onChange={(e) => setPurchaseDate(e.target.value)}
@@ -450,10 +464,11 @@ export default function EditarActivoPage({
 
           {/* Notas */}
           <div className="mt-6">
-            <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+            <label htmlFor="notes" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
               Observaciones / Notas
             </label>
             <textarea
+              id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
