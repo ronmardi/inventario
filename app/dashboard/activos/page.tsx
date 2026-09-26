@@ -34,6 +34,7 @@ export default async function ActivosPage({
   const toIndex = fromIndex + pageSize - 1;
 
   // 2. Consulta a Supabase obteniendo activos con sus relaciones y conteo total
+  // P2.16: Se agrega 'updated_at' a la consulta
   let query = supabase
     .from("assets")
     .select(
@@ -45,6 +46,7 @@ export default async function ActivosPage({
       model,
       status,
       created_at,
+      updated_at,
       categories ( name ),
       locations ( name )
     `,
@@ -256,19 +258,55 @@ export default async function ActivosPage({
                     ? asset.locations[0]?.name
                     : (asset.locations as unknown as { name?: string })?.name;
 
+                  // P2.16: Lógica para destacar activos recientes (24 horas)
+                  const now = new Date().getTime();
+                  const createdAt = new Date(asset.created_at).getTime();
+                  const updatedAt = asset.updated_at ? new Date(asset.updated_at).getTime() : createdAt;
+                  
+                  const horasDesdeCreacion = (now - createdAt) / (1000 * 60 * 60);
+                  const horasDesdeEdicion = (now - updatedAt) / (1000 * 60 * 60);
+
+                  const isNew = horasDesdeCreacion < 24;
+                  const isRecentlyEdited = !isNew && horasDesdeEdicion < 24;
+
+                  // Clases dinámicas para la fila
+                  let rowClass = "hover:bg-white/40 dark:hover:bg-gray-800/40 transition-colors";
+                  if (isNew) {
+                    rowClass = "bg-green-50/40 dark:bg-green-900/10 hover:bg-green-100/50 dark:hover:bg-green-900/20 transition-colors";
+                  } else if (isRecentlyEdited) {
+                    rowClass = "bg-blue-50/40 dark:bg-blue-900/10 hover:bg-blue-100/50 dark:hover:bg-blue-900/20 transition-colors";
+                  }
+
                   return (
                     <tr
                       key={asset.id}
-                      className="hover:bg-white/40 dark:hover:bg-gray-800/40 transition-colors"
+                      className={rowClass}
                     >
-                      <td className="py-4 px-6 font-mono font-bold text-blue-600 dark:text-blue-400">
+                      <td className="py-4 px-6 font-mono font-bold text-blue-600 dark:text-blue-400 relative">
+                        {/* Indicador visual de borde (sólo visible si es nuevo/editado) */}
+                        {isNew && <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]"></div>}
+                        {isRecentlyEdited && <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>}
+                        
                         {asset.asset_tag}
                       </td>
                       <td className="py-4 px-6">
-                        <div className="font-bold text-gray-900 dark:text-white">
-                          {asset.name}
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-900 dark:text-white">
+                            {asset.name}
+                          </span>
+                          {/* Badges de Nuevo/Editado */}
+                          {isNew && (
+                            <span className="px-2 py-0.5 text-[10px] uppercase font-black tracking-wider bg-green-500/20 text-green-700 dark:text-green-400 border border-green-500/30 rounded-full">
+                              Nuevo
+                            </span>
+                          )}
+                          {isRecentlyEdited && (
+                            <span className="px-2 py-0.5 text-[10px] uppercase font-black tracking-wider bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-500/30 rounded-full">
+                              Editado
+                            </span>
+                          )}
                         </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                           {asset.model || "Sin modelo"} {asset.serial_number ? `• S/N: ${asset.serial_number}` : ""}
                         </div>
                       </td>
