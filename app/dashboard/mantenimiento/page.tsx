@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { sanitizeInput } from "@/utils/sanitize";
 
 interface MaintenanceLog {
   id: string;
@@ -107,10 +108,13 @@ export default function MantenimientoPage() {
 
     setIsSubmitting(true);
 
+    // P3.18: Sanitizamos la descripción del problema reportado
+    const safeIssueDescription = sanitizeInput(issueDescription);
+
     const { error: rpcError } = await supabase.rpc("registrar_mantenimiento_atomico", {
       p_asset_id: selectedAssetId,
-      p_title: `Reporte de Falla: ${issueDescription.substring(0, 30)}...`,
-      p_description: issueDescription,
+      p_title: `Reporte de Falla: ${safeIssueDescription.substring(0, 30)}...`,
+      p_description: safeIssueDescription,
       p_cost: estimatedCost ? parseFloat(estimatedCost) : 0,
       p_maintenance_status: "en_reparacion",
     });
@@ -156,10 +160,13 @@ export default function MantenimientoPage() {
     setIsConfirmBajaOpen(false);
     setIsSubmitting(true);
 
+    // P3.18: Sanitizamos las notas de resolución
+    const safeResolutionNotes = sanitizeInput(resolutionNotes);
+
     const { error: logUpdateError } = await supabase
       .from("maintenance_logs")
       .update({
-        resolution_notes: resolutionNotes,
+        resolution_notes: safeResolutionNotes,
         cost: finalCost ? parseFloat(finalCost) : selectedLogForResolve.cost,
         completed_at: new Date().toISOString(),
       })
@@ -214,7 +221,7 @@ export default function MantenimientoPage() {
       
       {/* P0.4: MODAL CONFIRMAR BAJA DEFINITIVA */}
       {isConfirmBajaOpen && selectedLogForResolve && (
-        <div className="fixed inset-0 z-200 flex items-center justify-center p-4 bg-slate-900/50 dark:bg-black/80 backdrop-blur-md transition-all animate-fade-in">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/50 dark:bg-black/80 backdrop-blur-md transition-all animate-fade-in">
           <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-3xl border border-red-200 dark:border-red-900/50 p-6 shadow-2xl space-y-5 text-center">
             
             <div className="w-16 h-16 rounded-full mx-auto flex items-center justify-center bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
@@ -254,7 +261,7 @@ export default function MantenimientoPage() {
 
       {/* MODAL DE ALERTA PERSONALIZADO */}
       {alertData && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/30 dark:bg-black/70 backdrop-blur-md transition-all animate-fade-in">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/30 dark:bg-black/70 backdrop-blur-md transition-all animate-fade-in">
           <div className="w-full max-w-md bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl rounded-3xl border border-white/80 dark:border-gray-700/60 p-6 shadow-2xl space-y-4 text-center">
             
             <div className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center border shadow-sm ${
