@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/utils/supabase/client";
 import { GlassCard } from "@/components/ui/GlassCard";
+import { sanitizeInput } from "@/utils/sanitize";
 
 interface Category {
   id: string;
