@@ -26,7 +26,7 @@ interface AssetDetail {
   created_at: string;
   categories: { id: string; name: string } | { id: string; name: string }[] | null;
   locations: { id: string; name: string; address: string | null } | { id: string; name: string; address: string | null }[] | null;
-  maintenance_logs?: MaintenanceLog[]; // Añadimos la relación
+  maintenance_logs?: MaintenanceLog[];
 }
 
 export default function DetalleActivoPage({
@@ -49,7 +49,6 @@ export default function DetalleActivoPage({
         return;
       }
 
-      // P3.19: Actualizamos la consulta para incluir los logs de mantenimiento
       const { data, error } = await supabase
         .from("assets")
         .select(
@@ -74,7 +73,6 @@ export default function DetalleActivoPage({
       if (error || !data) {
         router.push("/dashboard/activos");
       } else {
-        // Ordenamos los mantenimientos del más reciente al más antiguo
         if (data.maintenance_logs && Array.isArray(data.maintenance_logs)) {
           data.maintenance_logs.sort((a, b) => 
             new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
@@ -97,7 +95,6 @@ export default function DetalleActivoPage({
 
   if (!asset) return null;
 
-  // Mapeo de nombres para categorías y ubicaciones
   const categoryName = Array.isArray(asset.categories)
     ? asset.categories[0]?.name
     : (asset.categories as unknown as { name?: string })?.name;
@@ -110,7 +107,6 @@ export default function DetalleActivoPage({
     ? asset.locations[0]?.address
     : (asset.locations as unknown as { address?: string })?.address;
 
-  // Estilos de estado para el equipo
   const statusStyles: Record<string, { label: string; class: string }> = {
     disponible: {
       label: "Disponible",
@@ -135,13 +131,27 @@ export default function DetalleActivoPage({
     class: "bg-gray-500/10 text-gray-500 border-gray-500/30",
   };
 
-  // URL generadora para el código QR con el Asset Tag
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
     asset.asset_tag
   )}`;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
+      
+      {/* Regla CSS global para forzar la ocultación del Layout (Sidebar y Header) al imprimir */}
+      <style>{`
+        @media print {
+          aside, header, nav, .pointer-events-none {
+            display: none !important;
+          }
+          body, main {
+            background: #ffffff !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            overflow: visible !important;
+          }
+        }
+      `}</style>
       
       {/* Encabezado Ocultable al Imprimir */}
       <div className="print:hidden flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-6 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-white/60 dark:border-gray-700/50 shadow-sm transition-all">
@@ -192,8 +202,8 @@ export default function DetalleActivoPage({
         </div>
       </div>
 
-      {/* ETIQUETA IMPRIMIBLE */}
-      <div className="hidden print:block print:p-8 print:bg-white text-black font-sans text-center max-w-xs mx-auto border-2 border-black rounded-xl p-4">
+      {/* ETIQUETA IMPRIMIBLE (SOLO VISIBLE AL IMPRIMIR) */}
+      <div className="hidden print:block print:p-8 print:bg-white text-black font-sans text-center max-w-xs mx-auto border-2 border-black rounded-xl p-4 my-8">
         <p className="font-extrabold text-lg uppercase tracking-wider">INVENTARIO TI</p>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={qrUrl} alt="Código QR" className="w-48 h-48 mx-auto my-2" />
@@ -333,7 +343,6 @@ export default function DetalleActivoPage({
             <tbody className="divide-y divide-gray-200/40 dark:divide-gray-800/40">
               {asset.maintenance_logs && asset.maintenance_logs.length > 0 ? (
                 asset.maintenance_logs.map((log) => {
-                  // Lógica visual del Badge
                   const isCompleted = !!log.completed_at;
                   const badgeClass = isCompleted 
                     ? "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/30" 
