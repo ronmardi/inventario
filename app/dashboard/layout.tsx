@@ -94,11 +94,12 @@ export default function DashboardLayout({
     { name: "Inventario", href: "/dashboard/activos", icon: ArchiveIcon },
     { name: "Escanear Equipo", href: "/dashboard/escaner", icon: QrCodeIcon },
     { name: "Mantenimiento", href: "/dashboard/mantenimiento", icon: WrenchIcon },
+    { name: "Mi Perfil", href: "/dashboard/perfil", icon: UserCircleIcon }, // Accesible para todos
     // Menús protegidos: Solo visibles para superadmin o it_technician
     ...(userRole === "superadmin" || userRole === "it_technician"
       ? [
           { name: "Equipo", href: "/dashboard/equipo", icon: UsersIcon },
-          { name: "Perfil Empresa", href: "/dashboard/perfil", icon: BuildingOfficeIcon },
+          { name: "Empresa", href: "/dashboard/empresa", icon: BuildingOfficeIcon },
           { name: "Configuración", href: "/dashboard/configuracion", icon: CogIcon },
         ]
       : []),
