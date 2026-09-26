@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { invitarMiembro } from "@/app/actions/equipo";
 
@@ -8,7 +9,14 @@ export default function InvitarMiembroModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "error" | "success" } | null>(null);
+  
+  // Estado para saber si estamos en el cliente y poder usar el Portal
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -25,11 +33,10 @@ export default function InvitarMiembroModal() {
       setMessage({ text: "¡Invitación enviada con éxito!", type: "success" });
       setIsLoading(false);
       
-      // Esperar un par de segundos para que el usuario lea el mensaje antes de cerrar
       setTimeout(() => {
         setIsOpen(false);
         setMessage(null);
-        router.refresh(); // Recarga la tabla de atrás para que aparezca el usuario pendiente
+        router.refresh();
       }, 2000);
     }
   };
@@ -46,9 +53,10 @@ export default function InvitarMiembroModal() {
         Invitar Miembro
       </button>
 
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 dark:bg-black/70 backdrop-blur-md transition-all animate-fade-in">
-          <div className="w-full max-w-md bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl rounded-3xl border border-white/80 dark:border-gray-700/60 p-6 shadow-2xl">
+      {/* Usamos createPortal para que el modal escape del contenedor con backdrop-blur */}
+      {isOpen && mounted && createPortal(
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/40 dark:bg-black/80 backdrop-blur-md transition-all animate-fade-in">
+          <div className="w-full max-w-md bg-white/95 dark:bg-gray-900/95 backdrop-blur-3xl rounded-3xl border border-white/80 dark:border-gray-700/60 p-6 shadow-2xl">
             <h3 className="text-xl font-extrabold text-gray-900 dark:text-white mb-4 drop-shadow-sm">
               Invitar al Equipo 🚀
             </h3>
@@ -120,7 +128,8 @@ export default function InvitarMiembroModal() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
