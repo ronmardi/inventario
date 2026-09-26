@@ -66,11 +66,11 @@ export default function PerfilPage() {
     // P3.18: Sanitizamos el nombre antes de guardarlo
     const safeFullName = sanitizeInput(fullName);
 
+    // CORRECCIÓN: Se elimina 'updated_at' para evitar el error de esquema
     const { error } = await supabase
       .from("profiles")
       .update({
-        full_name: safeFullName,
-        updated_at: new Date().toISOString(),
+        full_name: safeFullName
       })
       .eq("id", userId);
 
@@ -207,11 +207,11 @@ export default function PerfilPage() {
               </label>
               <div className="w-full px-4 py-3 rounded-xl bg-gray-100/50 dark:bg-gray-800/30 border border-transparent flex items-center">
                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border backdrop-blur-sm ${
-                  role === 'admin' 
+                  role === 'admin' || role === 'superadmin'
                     ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30'
                     : 'bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/30'
                 }`}>
-                  {role === 'admin' ? 'Administrador' : 'Técnico / Staff'}
+                  {role === 'admin' || role === 'superadmin' ? 'Administrador' : 'Técnico / Staff'}
                 </span>
               </div>
             </div>
