@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import ExportarButton from "./exportar-button";
+import { sanitizeInput } from "@/utils/sanitize";
 
 export default async function ActivosPage({
   searchParams,
