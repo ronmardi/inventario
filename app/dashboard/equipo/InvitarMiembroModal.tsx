@@ -23,21 +23,29 @@ export default function InvitarMiembroModal() {
     setIsLoading(true);
     setMessage(null);
 
-    const formData = new FormData(e.currentTarget);
-    const result = await invitarMiembro(formData);
+    try {
+      const formData = new FormData(e.currentTarget);
+      const result = await invitarMiembro(formData);
 
-    if (result?.error) {
-      setMessage({ text: result.error, type: "error" });
+      if (result?.error) {
+        setMessage({ text: result.error, type: "error" });
+      } else {
+        setMessage({ text: "¡Invitación enviada con éxito!", type: "success" });
+        setTimeout(() => {
+          setIsOpen(false);
+          setMessage(null);
+          router.refresh();
+        }, 2000);
+      }
+    } catch (err) {
+      console.error("Error al procesar la invitación:", err);
+      setMessage({ 
+        text: "Error de conexión o fallo en el servidor. Por favor intenta de nuevo.", 
+        type: "error" 
+      });
+    } finally {
+      // Garantiza que el botón 'Enviando...' siempre se restablezca
       setIsLoading(false);
-    } else {
-      setMessage({ text: "¡Invitación enviada con éxito!", type: "success" });
-      setIsLoading(false);
-      
-      setTimeout(() => {
-        setIsOpen(false);
-        setMessage(null);
-        router.refresh();
-      }, 2000);
     }
   };
 
@@ -73,23 +81,26 @@ export default function InvitarMiembroModal() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1">
+                <label htmlFor="invite-email" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1">
                   Correo Electrónico
                 </label>
                 <input 
+                  id="invite-email"
                   type="email" 
                   name="email" 
                   required 
+                  autoComplete="email"
                   placeholder="tecnico@empresa.com" 
                   className="w-full px-4 py-2.5 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-blue-500/50 shadow-inner transition-all" 
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1">
+                <label htmlFor="invite-role" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-1">
                   Rol en el Sistema
                 </label>
                 <select 
+                  id="invite-role"
                   name="role" 
                   required 
                   className="w-full px-4 py-2.5 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/50 shadow-inner transition-all cursor-pointer"
@@ -105,7 +116,10 @@ export default function InvitarMiembroModal() {
               <div className="flex justify-end gap-3 mt-6 pt-2 border-t border-gray-200/50 dark:border-gray-700/50">
                 <button 
                   type="button" 
-                  onClick={() => setIsOpen(false)} 
+                  onClick={() => {
+                    setIsOpen(false);
+                    setMessage(null);
+                  }} 
                   className="px-4 py-2.5 rounded-xl text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
                 >
                   Cancelar
