@@ -232,11 +232,15 @@ export default async function ActivosPage({
 
       {/* Tabla de Activos (Liquid Glass Style) */}
       <div className="overflow-hidden bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-white/60 dark:border-gray-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.2)] transition-all">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-sm">
+        {/* P3.17: Scroll suave, padding inferior y ancho mínimo */}
+        <div className="overflow-x-auto custom-scrollbar pb-2">
+          <table className="w-full text-left border-collapse text-sm min-w-max">
             <thead>
               <tr className="border-b border-gray-200/50 dark:border-gray-700/50 bg-white/30 dark:bg-gray-800/30 text-gray-700 dark:text-gray-300 font-bold uppercase tracking-wider text-xs">
-                <th className="py-4 px-6">Etiqueta ID</th>
+                {/* Cabecera Fija (Sticky) */}
+                <th className="py-4 px-6 sticky left-0 z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-2xl border-r border-gray-200/50 dark:border-gray-700/50 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.1)]">
+                  Etiqueta ID
+                </th>
                 <th className="py-4 px-6">Equipo / Modelo</th>
                 <th className="py-4 px-6">Categoría</th>
                 <th className="py-4 px-6">Registro / Ubicación</th>
@@ -258,7 +262,7 @@ export default async function ActivosPage({
                     ? asset.locations[0]?.name
                     : (asset.locations as unknown as { name?: string })?.name;
 
-                  // P2.16: Lógica para destacar activos recientes (24 horas)
+                  // Lógica P2.16 (Activos Recientes)
                   const now = new Date().getTime();
                   const createdAt = new Date(asset.created_at).getTime();
                   const updatedAt = asset.updated_at ? new Date(asset.updated_at).getTime() : createdAt;
@@ -269,51 +273,46 @@ export default async function ActivosPage({
                   const isNew = horasDesdeCreacion < 24;
                   const isRecentlyEdited = !isNew && horasDesdeEdicion < 24;
 
-                  // Clases dinámicas para la fila
-                  let rowClass = "hover:bg-white/40 dark:hover:bg-gray-800/40 transition-colors";
+                  // Añadimos 'group' para que el hover afecte a toda la fila y coordine con la columna sticky
+                  let rowClass = "group hover:bg-white/40 dark:hover:bg-gray-800/40 transition-colors";
                   if (isNew) {
-                    rowClass = "bg-green-50/40 dark:bg-green-900/10 hover:bg-green-100/50 dark:hover:bg-green-900/20 transition-colors";
+                    rowClass = "group bg-green-50/40 dark:bg-green-900/10 hover:bg-green-100/50 dark:hover:bg-green-900/20 transition-colors";
                   } else if (isRecentlyEdited) {
-                    rowClass = "bg-blue-50/40 dark:bg-blue-900/10 hover:bg-blue-100/50 dark:hover:bg-blue-900/20 transition-colors";
+                    rowClass = "group bg-blue-50/40 dark:bg-blue-900/10 hover:bg-blue-100/50 dark:hover:bg-blue-900/20 transition-colors";
                   }
 
                   return (
-                    <tr
-                      key={asset.id}
-                      className={rowClass}
-                    >
-                      <td className="py-4 px-6 font-mono font-bold text-blue-600 dark:text-blue-400 relative">
-                        {/* Indicador visual de borde (sólo visible si es nuevo/editado) */}
-                        {isNew && <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]"></div>}
-                        {isRecentlyEdited && <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>}
-                        
+                    <tr key={asset.id} className={rowClass}>
+                      {/* Celda Fija (Sticky) con efecto Glass y sincronización de hover */}
+                      <td className="py-4 px-6 font-mono font-bold text-blue-600 dark:text-blue-400 sticky left-0 z-10 bg-white/70 dark:bg-gray-900/80 backdrop-blur-2xl border-r border-gray-200/50 dark:border-gray-700/50 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)] group-hover:bg-white/90 dark:group-hover:bg-gray-800/90 transition-colors">
+                        {isNew && <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)] z-20"></div>}
+                        {isRecentlyEdited && <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] z-20"></div>}
                         {asset.asset_tag}
                       </td>
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-gray-900 dark:text-white">
+                          <span className="font-bold text-gray-900 dark:text-white whitespace-nowrap">
                             {asset.name}
                           </span>
-                          {/* Badges de Nuevo/Editado */}
                           {isNew && (
-                            <span className="px-2 py-0.5 text-[10px] uppercase font-black tracking-wider bg-green-500/20 text-green-700 dark:text-green-400 border border-green-500/30 rounded-full">
+                            <span className="px-2 py-0.5 text-[10px] uppercase font-black tracking-wider bg-green-500/20 text-green-700 dark:text-green-400 border border-green-500/30 rounded-full whitespace-nowrap">
                               Nuevo
                             </span>
                           )}
                           {isRecentlyEdited && (
-                            <span className="px-2 py-0.5 text-[10px] uppercase font-black tracking-wider bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-500/30 rounded-full">
+                            <span className="px-2 py-0.5 text-[10px] uppercase font-black tracking-wider bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-500/30 rounded-full whitespace-nowrap">
                               Editado
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 whitespace-nowrap">
                           {asset.model || "Sin modelo"} {asset.serial_number ? `• S/N: ${asset.serial_number}` : ""}
                         </div>
                       </td>
-                      <td className="py-4 px-6 text-gray-600 dark:text-gray-300">
+                      <td className="py-4 px-6 text-gray-600 dark:text-gray-300 whitespace-nowrap">
                         {categoryName || "General"}
                       </td>
-                      <td className="py-4 px-6">
+                      <td className="py-4 px-6 whitespace-nowrap">
                         <div className="text-gray-600 dark:text-gray-300 font-semibold">
                           {locationName || "Oficina Central"}
                         </div>
@@ -321,14 +320,12 @@ export default async function ActivosPage({
                           Alta: {new Date(asset.created_at).toLocaleDateString("es-CL")}
                         </div>
                       </td>
-                      <td className="py-4 px-6">
-                        <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border backdrop-blur-sm ${statusInfo.class}`}
-                        >
+                      <td className="py-4 px-6 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border backdrop-blur-sm ${statusInfo.class}`}>
                           {statusInfo.label}
                         </span>
                       </td>
-                      <td className="py-4 px-6 text-right space-x-2">
+                      <td className="py-4 px-6 text-right space-x-2 whitespace-nowrap">
                         <Link
                           href={`/dashboard/activos/${asset.id}`}
                           className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/60 dark:bg-gray-800/60 hover:bg-white dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 transition-all shadow-sm"
@@ -341,10 +338,7 @@ export default async function ActivosPage({
                 })
               ) : (
                 <tr>
-                  <td
-                    colSpan={6}
-                    className="py-12 text-center text-gray-500 dark:text-gray-400 font-medium"
-                  >
+                  <td colSpan={6} className="py-12 text-center text-gray-500 dark:text-gray-400 font-medium">
                     No se encontraron activos registrados en el inventario.
                   </td>
                 </tr>
