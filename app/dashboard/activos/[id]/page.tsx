@@ -40,6 +40,8 @@ export default function DetalleActivoPage({
 
   const [asset, setAsset] = useState<AssetDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  // Estado para el nombre dinámico de la empresa
+  const [companyName, setCompanyName] = useState<string>("INVENTARIO TI");
 
   useEffect(() => {
     async function loadAsset() {
@@ -49,6 +51,26 @@ export default function DetalleActivoPage({
         return;
       }
 
+      // 1. Obtener la empresa vinculada al usuario
+      const { data: userProfile } = await supabase
+        .from("profiles")
+        .select("client_id")
+        .eq("id", user.id)
+        .single();
+
+      if (userProfile?.client_id) {
+        const { data: clientData } = await supabase
+          .from("clients")
+          .select("company_name")
+          .eq("id", userProfile.client_id)
+          .single();
+
+        if (clientData?.company_name) {
+          setCompanyName(clientData.company_name);
+        }
+      }
+
+      // 2. Cargar los detalles del activo y sus mantenimientos
       const { data, error } = await supabase
         .from("assets")
         .select(
@@ -202,13 +224,15 @@ export default function DetalleActivoPage({
         </div>
       </div>
 
-      {/* ETIQUETA IMPRIMIBLE (SOLO VISIBLE AL IMPRIMIR) */}
+      {/* ETIQUETA IMPRIMIBLE (NOMBRE DE LA EMPRESA DINÁMICO) */}
       <div className="hidden print:block print:p-8 print:bg-white text-black font-sans text-center max-w-xs mx-auto border-2 border-black rounded-xl p-4 my-8">
-        <p className="font-extrabold text-lg uppercase tracking-wider">INVENTARIO TI</p>
+        <p className="font-extrabold text-lg uppercase tracking-wider truncate border-b-2 border-black pb-1 mb-2">
+          {companyName}
+        </p>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={qrUrl} alt="Código QR" className="w-48 h-48 mx-auto my-2" />
+        <img src={qrUrl} alt="Código QR" className="w-48 h-48 mx-auto my-2 object-contain" />
         <p className="font-mono font-black text-2xl text-black">{asset.asset_tag}</p>
-        <p className="text-xs font-bold text-gray-700 mt-1">{asset.name}</p>
+        <p className="text-xs font-bold text-gray-700 mt-1 uppercase">{asset.name}</p>
         {asset.serial_number && (
           <p className="text-[10px] font-mono text-gray-500">S/N: {asset.serial_number}</p>
         )}
