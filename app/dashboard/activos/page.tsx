@@ -2,7 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import ExportarButton from "./exportar-button";
-import { sanitizeInput } from "@/utils/sanitize";
+import { sanitizeSearchQuery } from "@/utils/sanitize";
 
 export default async function ActivosPage({
   searchParams,
@@ -35,7 +35,6 @@ export default async function ActivosPage({
   const toIndex = fromIndex + pageSize - 1;
 
   // 2. Consulta a Supabase obteniendo activos con sus relaciones y conteo total
-  // P2.16: Se agrega 'updated_at' a la consulta
   let query = supabase
     .from("assets")
     .select(
@@ -55,18 +54,11 @@ export default async function ActivosPage({
     )
     .order("created_at", { ascending: false });
 
-  // Filtro de búsqueda por texto sanitizado (P0.5: Protección contra PostgREST injection)
+  // Filtro de búsqueda por texto sanitizado con escapado de comas para PostgREST .or()
   if (searchQuery) {
-    // Escapar solo los caracteres que rompen el parser de PostgREST, manteniendo el sentido de la búsqueda
-    const escapedQuery = searchQuery
-      .replace(/\\/g, "\\\\") // Escapar barras invertidas primero
-      .replace(/"/g, '\\"') // Escapar comillas dobles
-      .replace(/%/g, "\\%") // Escapar porcentajes literales para evitar wildcards no deseados
-      .replace(/_/g, "\\_") // Escapar guiones bajos literales
-      .trim();
+    const escapedQuery = sanitizeSearchQuery(searchQuery);
 
     if (escapedQuery) {
-      // Uso de identificadores exactos y escapes seguros
       query = query.or(
         `name.ilike.%${escapedQuery}%,asset_tag.ilike.%${escapedQuery}%,serial_number.ilike.%${escapedQuery}%`
       );
@@ -233,12 +225,10 @@ export default async function ActivosPage({
 
       {/* Tabla de Activos (Liquid Glass Style) */}
       <div className="overflow-hidden bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-white/60 dark:border-gray-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.05)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.2)] transition-all">
-        {/* P3.17: Scroll suave, padding inferior y ancho mínimo */}
         <div className="overflow-x-auto custom-scrollbar pb-2">
           <table className="w-full text-left border-collapse text-sm min-w-max">
             <thead>
               <tr className="border-b border-gray-200/50 dark:border-gray-700/50 bg-white/30 dark:bg-gray-800/30 text-gray-700 dark:text-gray-300 font-bold uppercase tracking-wider text-xs">
-                {/* Cabecera Fija (Sticky) */}
                 <th className="py-4 px-6 sticky left-0 z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-2xl border-r border-gray-200/50 dark:border-gray-700/50 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.1)]">
                   Etiqueta ID
                 </th>
@@ -263,7 +253,6 @@ export default async function ActivosPage({
                     ? asset.locations[0]?.name
                     : (asset.locations as unknown as { name?: string })?.name;
 
-                  // Lógica P2.16 (Activos Recientes)
                   const now = new Date().getTime();
                   const createdAt = new Date(asset.created_at).getTime();
                   const updatedAt = asset.updated_at ? new Date(asset.updated_at).getTime() : createdAt;
@@ -274,7 +263,6 @@ export default async function ActivosPage({
                   const isNew = horasDesdeCreacion < 24;
                   const isRecentlyEdited = !isNew && horasDesdeEdicion < 24;
 
-                  // Añadimos 'group' para que el hover afecte a toda la fila y coordine con la columna sticky
                   let rowClass = "group hover:bg-white/40 dark:hover:bg-gray-800/40 transition-colors";
                   if (isNew) {
                     rowClass = "group bg-green-50/40 dark:bg-green-900/10 hover:bg-green-100/50 dark:hover:bg-green-900/20 transition-colors";
@@ -284,7 +272,6 @@ export default async function ActivosPage({
 
                   return (
                     <tr key={asset.id} className={rowClass}>
-                      {/* Celda Fija (Sticky) con efecto Glass y sincronización de hover */}
                       <td className="py-4 px-6 font-mono font-bold text-blue-600 dark:text-blue-400 sticky left-0 z-10 bg-white/70 dark:bg-gray-900/80 backdrop-blur-2xl border-r border-gray-200/50 dark:border-gray-700/50 shadow-[4px_0_12px_-4px_rgba(0,0,0,0.05)] group-hover:bg-white/90 dark:group-hover:bg-gray-800/90 transition-colors">
                         {isNew && <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)] z-20"></div>}
                         {isRecentlyEdited && <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] z-20"></div>}
