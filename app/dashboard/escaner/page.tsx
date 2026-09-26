@@ -236,11 +236,11 @@ export default function EscanerPage() {
             </h3>
             <form onSubmit={handleManualSearch} className="flex gap-2">
               <input
+                id="assetQuery"
+                name="assetQuery"
                 type="text"
-                value={manualCode}
-                onChange={(e) => setManualCode(e.target.value)}
                 placeholder="Ej. EQ-6092 o C02G8192MD6R"
-                className="flex-1 px-4 py-2.5 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                // ... resto de tus props (value, onChange, className, etc.)
               />
               <button
                 type="submit"
