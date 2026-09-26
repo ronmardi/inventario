@@ -35,17 +35,22 @@ export async function invitarMiembro(formData: FormData) {
       return { error: "No tienes permisos suficientes para invitar miembros a la empresa." };
     }
 
-    // 2. Validar que las variables de entorno existan para que no explote
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      console.error("❌ Faltan las variables de entorno de Supabase.");
-      return { error: "Error de configuración del servidor. Faltan llaves de Supabase." };
+    // 2. Validar individualmente cada variable de entorno para identificar exactamente cuál falta
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl) {
+      console.error("❌ Falta NEXT_PUBLIC_SUPABASE_URL en el entorno de Node.js.");
+      return { error: "Falta configurar NEXT_PUBLIC_SUPABASE_URL en el servidor (.env.local)." };
+    }
+
+    if (!serviceRoleKey) {
+      console.error("❌ Falta SUPABASE_SERVICE_ROLE_KEY en el entorno de Node.js.");
+      return { error: "Falta configurar SUPABASE_SERVICE_ROLE_KEY en el servidor (.env.local)." };
     }
 
     // 3. Inicializar el cliente Admin (bypass de RLS para invitar usuarios)
-    const supabaseAdmin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
+    const supabaseAdmin = createAdminClient(supabaseUrl, serviceRoleKey);
 
     // 4. Enviar el correo de invitación mediante la Admin API de Supabase Auth
     const { data: inviteData, error: inviteError } =
@@ -74,7 +79,6 @@ export async function invitarMiembro(formData: FormData) {
     return { success: true };
 
   } catch (error: any) {
-    // Si algo catastrófico ocurre, lo atrapamos aquí
     console.error("Error inesperado en invitarMiembro:", error);
     return { error: "Ocurrió un error inesperado en el servidor." };
   }
