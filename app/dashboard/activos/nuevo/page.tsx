@@ -315,7 +315,7 @@ export default function NuevoActivoPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         
         {/* Fotografía del Equipo */}
-        <GlassCard title="Fotografía del Producto / Caja (Opcional)">
+        <GlassCard title="Fotografía del Producto / Caja">
           <div className="flex items-center space-x-6">
             <div className="relative h-28 w-28 rounded-2xl bg-white/60 dark:bg-gray-800/60 border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center overflow-hidden shadow-inner backdrop-blur-md">
               {imagePreview ? (
@@ -330,10 +330,21 @@ export default function NuevoActivoPage() {
                 <CameraIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
               )}
             </div>
-            <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-blue-600/90 border border-white/60 dark:border-gray-600/60 text-sm font-bold text-white shadow-sm hover:bg-blue-600 transition-all">
-              Cargar Foto
-              <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
-            </label>
+            <div className="space-y-2">
+              <label 
+                htmlFor="imageUpload" 
+                className="cursor-pointer inline-block px-4 py-2.5 rounded-xl bg-blue-600/90 border border-blue-500/60 text-sm font-bold text-white shadow-sm hover:bg-blue-600 transition-all"
+              >
+                Cargar Foto
+                <input 
+                  id="imageUpload"
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={handleImageChange} 
+                />
+              </label>
+            </div>
           </div>
         </GlassCard>
 
@@ -343,12 +354,17 @@ export default function NuevoActivoPage() {
             
             {/* Categoría */}
             <div>
-              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+              <label htmlFor="categoryId" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Categoría
               </label>
               <select
+                id="categoryId"
                 value={categoryId}
-                onChange={(e) => handleCategoryChange(e.target.value)}
+                onChange={(e) => {
+                  // Si estás en Editar, usa setCategoryId. Si estás en Nuevo, usa handleCategoryChange.
+                  // Ajusta según el archivo donde lo pegues.
+                  typeof handleCategoryChange !== 'undefined' ? handleCategoryChange(e.target.value) : setCategoryId(e.target.value);
+                }}
                 className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 text-sm outline-none transition-all shadow-inner"
               >
                 <option value="">Seleccionar Categoría...</option>
@@ -360,10 +376,11 @@ export default function NuevoActivoPage() {
 
             {/* Etiqueta ID */}
             <div>
-              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
-                Etiqueta ID / Código
+              <label htmlFor="assetTag" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+                Etiqueta ID / Código *
               </label>
               <input
+                id="assetTag"
                 type="text"
                 value={assetTag}
                 onChange={(e) => setAssetTag(e.target.value)}
@@ -374,25 +391,27 @@ export default function NuevoActivoPage() {
 
             {/* Nombre */}
             <div>
-              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+              <label htmlFor="name" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Nombre Corto *
               </label>
               <input
+                id="name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                placeholder="Ej. Mouse Inalámbrico HP / Notebook Dell"
+                placeholder="Ej. Mouse Inalámbrico HP"
                 className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/50"
               />
             </div>
 
             {/* Modelo */}
             <div>
-              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+              <label htmlFor="model" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Marca / Modelo
               </label>
               <input
+                id="model"
                 type="text"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
@@ -403,34 +422,39 @@ export default function NuevoActivoPage() {
 
             {/* Número de Serie */}
             <div>
-              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+              <label htmlFor="serialNumber" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Número de Serie (S/N)
               </label>
               <div className="flex space-x-2">
                 <input
+                  id="serialNumber"
                   type="text"
                   value={serialNumber}
                   onChange={(e) => setSerialNumber(e.target.value)}
                   placeholder="Ej. S/N de fábrica"
                   className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white font-mono text-sm outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/50"
                 />
-                <button
-                  type="button"
-                  onClick={startScanner}
-                  title="Escanear Código de Barras de la caja"
-                  className="px-3.5 py-3 bg-blue-600/90 hover:bg-blue-600 text-white rounded-xl shadow-md shadow-blue-500/20 backdrop-blur-sm transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center shrink-0"
-                >
-                  <BarcodeScanIcon className="w-5 h-5" />
-                </button>
+                {/* Nota: En EditarActivoPage el botón de escáner no existe, puedes eliminar el botón de abajo en ese archivo */}
+                {typeof startScanner !== 'undefined' && (
+                  <button
+                    type="button"
+                    onClick={startScanner}
+                    title="Escanear Código de Barras"
+                    className="px-3.5 py-3 bg-blue-600/90 hover:bg-blue-600 text-white rounded-xl shadow-md shadow-blue-500/20 backdrop-blur-sm transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center shrink-0"
+                  >
+                    <BarcodeScanIcon className="w-5 h-5" />
+                  </button>
+                )}
               </div>
             </div>
 
             {/* Ubicación */}
             <div>
-              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+              <label htmlFor="locationId" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Ubicación Física
               </label>
               <select
+                id="locationId"
                 value={locationId}
                 onChange={(e) => setLocationId(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/50"
@@ -444,10 +468,11 @@ export default function NuevoActivoPage() {
 
             {/* Estado */}
             <div>
-              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
-                Estado Inicial
+              <label htmlFor="status" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+                Estado
               </label>
               <select
+                id="status"
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/50"
@@ -461,10 +486,11 @@ export default function NuevoActivoPage() {
 
             {/* Fecha de compra */}
             <div>
-              <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+              <label htmlFor="purchaseDate" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Fecha de Compra
               </label>
               <input
+                id="purchaseDate"
                 type="date"
                 value={purchaseDate}
                 onChange={(e) => setPurchaseDate(e.target.value)}
@@ -475,14 +501,14 @@ export default function NuevoActivoPage() {
 
           {/* Notas */}
           <div className="mt-6">
-            <label className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+            <label htmlFor="notes" className="block text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
               Observaciones / Notas
             </label>
             <textarea
+              id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
-              placeholder="Detalles sobre garantía, estado del cable, o si viene en kit..."
               className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/50"
             />
           </div>
