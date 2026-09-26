@@ -5,6 +5,15 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState, use } from "react";
 
+// Agregamos la interfaz para la bitácora de mantenimiento
+interface MaintenanceLog {
+  id: string;
+  issue_description: string;
+  cost: number | null;
+  started_at: string;
+  completed_at?: string | null;
+}
+
 interface AssetDetail {
   id: string;
   asset_tag: string;
@@ -17,6 +26,7 @@ interface AssetDetail {
   created_at: string;
   categories: { id: string; name: string } | { id: string; name: string }[] | null;
   locations: { id: string; name: string; address: string | null } | { id: string; name: string; address: string | null }[] | null;
+  maintenance_logs?: MaintenanceLog[]; // Añadimos la relación
 }
 
 export default function DetalleActivoPage({
@@ -39,6 +49,7 @@ export default function DetalleActivoPage({
         return;
       }
 
+      // P3.19: Actualizamos la consulta para incluir los logs de mantenimiento
       const { data, error } = await supabase
         .from("assets")
         .select(
@@ -53,7 +64,8 @@ export default function DetalleActivoPage({
           notes,
           created_at,
           categories ( id, name ),
-          locations ( id, name, address )
+          locations ( id, name, address ),
+          maintenance_logs ( id, issue_description, cost, started_at, completed_at )
         `
         )
         .eq("id", id)
@@ -62,6 +74,12 @@ export default function DetalleActivoPage({
       if (error || !data) {
         router.push("/dashboard/activos");
       } else {
+        // Ordenamos los mantenimientos del más reciente al más antiguo
+        if (data.maintenance_logs && Array.isArray(data.maintenance_logs)) {
+          data.maintenance_logs.sort((a, b) => 
+            new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
+          );
+        }
         setAsset(data as unknown as AssetDetail);
       }
       setLoading(false);
@@ -92,7 +110,7 @@ export default function DetalleActivoPage({
     ? asset.locations[0]?.address
     : (asset.locations as unknown as { address?: string })?.address;
 
-  // Estilos de estado
+  // Estilos de estado para el equipo
   const statusStyles: Record<string, { label: string; class: string }> = {
     disponible: {
       label: "Disponible",
@@ -123,7 +141,7 @@ export default function DetalleActivoPage({
   )}`;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
       
       {/* Encabezado Ocultable al Imprimir */}
       <div className="print:hidden flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-6 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-white/60 dark:border-gray-700/50 shadow-sm transition-all">
@@ -174,7 +192,7 @@ export default function DetalleActivoPage({
         </div>
       </div>
 
-      {/* ETIOUETA IMPRIMIBLE (Solo visible o adaptada al imprimir) */}
+      {/* ETIQUETA IMPRIMIBLE */}
       <div className="hidden print:block print:p-8 print:bg-white text-black font-sans text-center max-w-xs mx-auto border-2 border-black rounded-xl p-4">
         <p className="font-extrabold text-lg uppercase tracking-wider">INVENTARIO TI</p>
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -186,11 +204,11 @@ export default function DetalleActivoPage({
         )}
       </div>
 
-      {/* CONTENIDO PRINCIPAL DE LA VISTA (Oculto al imprimir) */}
+      {/* CONTENIDO PRINCIPAL DE LA VISTA */}
       <div className="print:hidden grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Columna Izquierda: Tarjeta del QR e Imprimible */}
-        <div className="p-6 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-gray-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] flex flex-col items-center text-center">
+        {/* Columna Izquierda: Tarjeta del QR */}
+        <div className="p-6 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-gray-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] flex flex-col items-center text-center h-fit">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
             Código QR de Activo
           </h2>
@@ -210,7 +228,7 @@ export default function DetalleActivoPage({
           <PrintButton fullWidth />
         </div>
 
-        {/* Columna Derecha: Especificaciones y Ficha Técnica */}
+        {/* Columna Derecha: Especificaciones */}
         <div className="lg:col-span-2 p-8 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-gray-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] space-y-6">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white border-b border-gray-200/50 dark:border-gray-700/50 pb-3">
             Ficha Técnica del Equipo
@@ -269,7 +287,7 @@ export default function DetalleActivoPage({
 
             <div>
               <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Fecha de Registro en Sistema
+                Fecha de Registro
               </p>
               <p className="mt-1 text-base font-semibold text-gray-900 dark:text-white">
                 {new Date(asset.created_at).toLocaleDateString("es-CL")}
@@ -277,23 +295,94 @@ export default function DetalleActivoPage({
             </div>
           </div>
 
-          {/* Observaciones / Notas */}
           <div className="pt-4 border-t border-gray-200/50 dark:border-gray-700/50">
             <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
               Observaciones / Garantía
             </p>
-            <div className="p-4 rounded-2xl bg-white/50 dark:bg-gray-800/50 border border-white/40 dark:border-gray-600/40 text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
+            <div className="p-4 rounded-2xl bg-white/50 dark:bg-gray-800/50 border border-white/40 dark:border-gray-600/40 text-sm text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap">
               {asset.notes || "Sin observaciones adicionales."}
             </div>
           </div>
         </div>
+      </div>
 
+      {/* BITÁCORA DE MANTENIMIENTO (P3.19) */}
+      <div className="print:hidden p-8 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-gray-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)]">
+        <div className="flex items-center justify-between border-b border-gray-200/50 dark:border-gray-700/50 pb-4 mb-4">
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
+            <ToolIcon className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" />
+            Bitácora de Mantenimiento
+          </h2>
+          <Link
+            href={`/dashboard/activos/${asset.id}/mantenimiento`}
+            className="px-4 py-2 rounded-xl text-xs font-bold text-blue-700 dark:text-blue-300 bg-blue-100/50 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-800/50 transition-colors border border-blue-200 dark:border-blue-800"
+          >
+            + Registrar Incidencia
+          </Link>
+        </div>
+
+        <div className="overflow-x-auto custom-scrollbar pb-2">
+          <table className="w-full text-left border-collapse text-sm min-w-max">
+            <thead>
+              <tr className="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider border-b border-gray-200/50 dark:border-gray-700/50">
+                <th className="py-3 px-4 font-bold">Fecha / Estado</th>
+                <th className="py-3 px-4 font-bold">Descripción del Trabajo</th>
+                <th className="py-3 px-4 font-bold text-right">Costo Estimado</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200/40 dark:divide-gray-800/40">
+              {asset.maintenance_logs && asset.maintenance_logs.length > 0 ? (
+                asset.maintenance_logs.map((log) => {
+                  // Lógica visual del Badge
+                  const isCompleted = !!log.completed_at;
+                  const badgeClass = isCompleted 
+                    ? "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/30" 
+                    : "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 animate-pulse";
+                  const badgeText = isCompleted ? "Completado" : "En Proceso / Registrado";
+
+                  return (
+                    <tr key={log.id} className="hover:bg-white/40 dark:hover:bg-gray-800/40 transition-colors">
+                      <td className="py-4 px-4 align-top">
+                        <div className="font-mono text-gray-900 dark:text-gray-200 font-medium">
+                          {new Date(log.started_at).toLocaleDateString("es-CL")}
+                        </div>
+                        <div className="mt-1">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border backdrop-blur-sm ${badgeClass}`}>
+                            {badgeText}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                          {log.issue_description}
+                        </p>
+                      </td>
+                      <td className="py-4 px-4 text-right align-top">
+                        <span className="font-bold text-gray-900 dark:text-white">
+                          {log.cost != null && log.cost > 0 
+                            ? new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(log.cost) 
+                            : "—"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={3} className="py-8 text-center text-gray-500 dark:text-gray-400 font-medium bg-gray-50/30 dark:bg-gray-800/20 rounded-xl">
+                    No hay mantenimientos ni incidencias registradas para este equipo.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 }
 
-// Botón de Impresión de Cliente (Embedded)
+// Botón de Impresión de Cliente
 function PrintButton({ fullWidth }: { fullWidth?: boolean }) {
   return (
     <button
@@ -333,6 +422,14 @@ function PencilIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+    </svg>
+  );
+}
+
+function ToolIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.83M11.42 15.17l-4.95-4.95a1.875 1.875 0 010-2.652L8.5 5.5m2.92 9.67L9.5 17.5M8.5 5.5l1.65-1.65a1.875 1.875 0 012.652 0L15.17 6.22m-6.67-.72L6.13 7.87a1.875 1.875 0 000 2.652l4.95 4.95m-9.58 6.08l4.41-4.41" />
     </svg>
   );
 }
