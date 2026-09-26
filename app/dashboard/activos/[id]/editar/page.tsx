@@ -185,19 +185,19 @@ export default function EditarActivoPage({
         }
       }
 
-      // 2. Actualizar el registro en la base de datos
+      // 2. Actualizar el registro en la base de datos (P3.18: Sanitización de inputs aplicada)
       const { error: updateError } = await supabase
         .from("assets")
         .update({
-          asset_tag: assetTag,
-          name,
-          model: model || null,
-          serial_number: serialNumber || null,
+          asset_tag: sanitizeInput(assetTag),
+          name: sanitizeInput(name),
+          model: sanitizeInput(model) || null,
+          serial_number: sanitizeInput(serialNumber) || null,
           category_id: categoryId || null,
           location_id: locationId || null,
           status,
           purchase_date: purchaseDate || null,
-          notes: notes || null,
+          notes: sanitizeInput(notes) || null,
           image_url: finalImageUrl,
           updated_at: new Date().toISOString(),
         })
@@ -233,7 +233,7 @@ export default function EditarActivoPage({
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Modal de Alerta */}
       {alertData && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/30 dark:bg-black/70 backdrop-blur-md transition-all animate-fade-in">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/30 dark:bg-black/70 backdrop-blur-md transition-all animate-fade-in">
           <div className="w-full max-w-md bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl rounded-3xl border border-white/80 dark:border-gray-700/60 p-6 shadow-2xl space-y-4 text-center">
             <div
               className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center border shadow-sm ${
