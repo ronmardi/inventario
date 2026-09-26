@@ -175,12 +175,14 @@ export default function PerfilPage() {
               </label>
               <input
                 id="fullName"
+                name="fullName"
                 type="text"
+                autoComplete="name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Ej. Juan Pérez"
                 className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/50"
-              />
+               />
               <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                 Este nombre será visible para otros miembros de tu equipo.
               </p>
@@ -193,6 +195,7 @@ export default function PerfilPage() {
               </label>
               <input
                 id="email"
+                name="email"
                 type="email"
                 value={email}
                 disabled
