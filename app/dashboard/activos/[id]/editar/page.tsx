@@ -233,7 +233,7 @@ export default function EditarActivoPage({
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Modal de Alerta */}
       {alertData && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/30 dark:bg-black/70 backdrop-blur-md transition-all animate-fade-in">
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/30 dark:bg-black/70 backdrop-blur-md transition-all animate-fade-in">
           <div className="w-full max-w-md bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl rounded-3xl border border-white/80 dark:border-gray-700/60 p-6 shadow-2xl space-y-4 text-center">
             <div
               className={`w-14 h-14 rounded-2xl mx-auto flex items-center justify-center border shadow-sm ${
