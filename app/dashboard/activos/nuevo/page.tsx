@@ -7,6 +7,7 @@ import Image from "next/image";
 import { createClient } from "@/utils/supabase/client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Html5Qrcode } from "html5-qrcode";
+import { sanitizeInput } from "@/utils/sanitize";
 
 interface Category {
   id: string;
@@ -204,17 +205,18 @@ export default function NuevoActivoPage() {
         }
       }
 
+      // P3.18: Inserción sanitizada contra XSS
       const { error: insertError } = await supabase.from("assets").insert({
         client_id: clientId,
-        asset_tag: assetTag,
-        name,
-        model: model || null,
-        serial_number: serialNumber || null,
+        asset_tag: sanitizeInput(assetTag),
+        name: sanitizeInput(name),
+        model: sanitizeInput(model) || null,
+        serial_number: sanitizeInput(serialNumber) || null,
         category_id: categoryId || null,
         location_id: locationId || null,
         status,
         purchase_date: purchaseDate || null,
-        notes,
+        notes: sanitizeInput(notes) || null,
         image_url: finalImageUrl,
       });
 
@@ -361,8 +363,6 @@ export default function NuevoActivoPage() {
                 id="categoryId"
                 value={categoryId}
                 onChange={(e) => {
-                  // Si estás en Editar, usa setCategoryId. Si estás en Nuevo, usa handleCategoryChange.
-                  // Ajusta según el archivo donde lo pegues.
                   typeof handleCategoryChange !== 'undefined' ? handleCategoryChange(e.target.value) : setCategoryId(e.target.value);
                 }}
                 className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 text-sm outline-none transition-all shadow-inner"
@@ -434,7 +434,6 @@ export default function NuevoActivoPage() {
                   placeholder="Ej. S/N de fábrica"
                   className="w-full px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white font-mono text-sm outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/50"
                 />
-                {/* Nota: En EditarActivoPage el botón de escáner no existe, puedes eliminar el botón de abajo en ese archivo */}
                 {typeof startScanner !== 'undefined' && (
                   <button
                     type="button"
