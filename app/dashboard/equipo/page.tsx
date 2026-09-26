@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
+import InvitarMiembroModal from "./InvitarMiembroModal";
 
 export default async function EquipoPage() {
   const supabase = await createClient();
@@ -49,10 +50,8 @@ export default async function EquipoPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl font-bold text-sm text-white bg-blue-600/90 hover:bg-blue-600 shadow-md shadow-blue-500/20 backdrop-blur-sm transition-all hover:scale-[1.02] active:scale-[0.98]">
-            <UserPlusIcon className="w-5 h-5 mr-2" />
-            Invitar Miembro
-          </button>
+          {/* Modal interactivo de invitación */}
+          <InvitarMiembroModal />
         </div>
       </div>
 
@@ -93,11 +92,11 @@ export default async function EquipoPage() {
                     </td>
                     <td className="py-4 px-6">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border backdrop-blur-sm ${
-                        member.role === 'admin' 
+                        member.role === 'admin' || member.role === 'superadmin' 
                           ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30'
                           : 'bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/30'
                       }`}>
-                        {member.role === 'admin' ? 'Administrador' : 'Técnico / Staff'}
+                        {member.role === 'admin' || member.role === 'superadmin' ? 'Administrador' : 'Técnico / Staff'}
                       </span>
                     </td>
                     <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-xs font-semibold">
@@ -126,14 +125,5 @@ export default async function EquipoPage() {
         </div>
       </div>
     </div>
-  );
-}
-
-// Icono
-function UserPlusIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.66-1.546" />
-    </svg>
   );
 }
