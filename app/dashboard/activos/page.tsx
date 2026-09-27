@@ -10,6 +10,8 @@ export default async function ActivosPage({
   searchParams: Promise<{
     q?: string;
     status?: string;
+    category?: string;
+    location?: string;
     from?: string;
     to?: string;
     page?: string;
@@ -26,7 +28,15 @@ export default async function ActivosPage({
     redirect("/login");
   }
 
-  const { q: searchQuery, status: statusFilter, from, to, page: pageParam } = await searchParams;
+  const { 
+    q: searchQuery, 
+    status: statusFilter, 
+    category: categoryFilter,
+    location: locationFilter,
+    from, 
+    to, 
+    page: pageParam 
+  } = await searchParams;
 
   // Paginación server-side con protección contra NaN
   const parsedPage = parseInt(pageParam || "1", 10);
@@ -35,7 +45,16 @@ export default async function ActivosPage({
   const fromIndex = (currentPage - 1) * pageSize;
   const toIndex = fromIndex + pageSize - 1;
 
-  // 2. Consulta a Supabase obteniendo activos con sus relaciones y conteo total
+  // 2. Obtener categorías y ubicaciones para los filtros dinámicos
+  const [
+    { data: categories },
+    { data: locations }
+  ] = await Promise.all([
+    supabase.from("categories").select("id, name").order("name"),
+    supabase.from("locations").select("id, name").order("name")
+  ]);
+
+  // 3. Consulta a Supabase obteniendo activos con sus relaciones y conteo total
   let query = supabase
     .from("assets")
     .select(
@@ -72,6 +91,14 @@ export default async function ActivosPage({
     query = query.eq("status", statusFilter);
   }
 
+  // Filtros de Categoría y Ubicación
+  if (categoryFilter && categoryFilter !== "todas") {
+    query = query.eq("category_id", categoryFilter);
+  }
+  if (locationFilter && locationFilter !== "todas") {
+    query = query.eq("location_id", locationFilter);
+  }
+
   // Filtros de fecha sanitizados con Regex YYYY-MM-DD
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
   const isFromValid = Boolean(from && dateRegex.test(from));
@@ -101,6 +128,8 @@ export default async function ActivosPage({
     const params = new URLSearchParams();
     if (searchQuery) params.set("q", searchQuery);
     if (statusFilter && validStatuses.includes(statusFilter)) params.set("status", statusFilter);
+    if (categoryFilter && categoryFilter !== "todas") params.set("category", categoryFilter);
+    if (locationFilter && locationFilter !== "todas") params.set("location", locationFilter);
     if (isFromValid && from) params.set("from", from);
     if (isToValid && to) params.set("to", to);
     params.set("page", newPage.toString());
@@ -111,28 +140,29 @@ export default async function ActivosPage({
   const statusStyles: Record<string, { label: string; class: string }> = {
     disponible: {
       label: "Disponible",
-      class:
-        "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/30",
+      class: "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/30",
     },
     asignado: {
       label: "Asignado",
-      class:
-        "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30",
+      class: "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30",
     },
     en_reparacion: {
       label: "En Reparación",
-      class:
-        "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/30",
+      class: "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/30",
     },
     baja: {
       label: "Dado de Baja",
-      class:
-        "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30",
+      class: "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30",
     },
   };
 
   const hasActiveFilters = Boolean(
-    searchQuery || (statusFilter && validStatuses.includes(statusFilter)) || isFromValid || isToValid
+    searchQuery || 
+    (statusFilter && validStatuses.includes(statusFilter)) || 
+    (categoryFilter && categoryFilter !== "todas") || 
+    (locationFilter && locationFilter !== "todas") || 
+    isFromValid || 
+    isToValid
   );
 
   return (
@@ -168,7 +198,7 @@ export default async function ActivosPage({
 
       {/* Barra de Filtros y Búsqueda Avanzada */}
       <div className="p-4 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-white/60 dark:border-gray-700/50 shadow-sm transition-all">
-        <form method="GET" className="flex flex-col md:flex-row flex-wrap gap-3 items-center w-full">
+        <form method="GET" className="flex flex-col xl:flex-row flex-wrap gap-3 items-center w-full">
           
           {/* Búsqueda por Texto */}
           <div className="relative flex-1 w-full min-w-50">
@@ -182,58 +212,86 @@ export default async function ActivosPage({
             />
           </div>
 
-          {/* Filtro Fecha: Desde */}
-          <div className="flex items-center bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 rounded-xl px-3 py-1.5 w-full md:w-auto focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
-            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 mr-2 uppercase tracking-wider">Desde:</label>
-            <input
-              type="date"
-              name="from"
-              defaultValue={isFromValid ? from : ""}
-              className="bg-transparent text-gray-900 dark:text-white text-sm outline-none w-full"
-            />
-          </div>
-
-          {/* Filtro Fecha: Hasta */}
-          <div className="flex items-center bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 rounded-xl px-3 py-1.5 w-full md:w-auto focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
-            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 mr-2 uppercase tracking-wider">Hasta:</label>
-            <input
-              type="date"
-              name="to"
-              defaultValue={isToValid ? to : ""}
-              className="bg-transparent text-gray-900 dark:text-white text-sm outline-none w-full"
-            />
-          </div>
-
-          {/* Selector de Estado */}
-          <select
-            name="status"
-            defaultValue={statusFilter || "todos"}
-            className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-          >
-            <option value="todos">Todos los Estados</option>
-            <option value="disponible">Disponibles</option>
-            <option value="asignado">Asignados</option>
-            <option value="en_reparacion">En Reparación</option>
-            <option value="baja">Dado de Baja</option>
-          </select>
-
-          {/* Botones */}
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <button
-              type="submit"
-              className="flex-1 md:flex-none px-5 py-2.5 rounded-xl bg-blue-600/90 hover:bg-blue-600 text-white shadow-md shadow-blue-500/20 text-sm font-bold transition-all"
+          <div className="grid grid-cols-2 md:flex gap-3 w-full xl:w-auto">
+            {/* Filtro Categoría */}
+            <select
+              name="category"
+              defaultValue={categoryFilter || "todas"}
+              className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
             >
-              Filtrar
-            </button>
-            {hasActiveFilters && (
-              <Link
-                href="/dashboard/activos"
-                className="px-4 py-2.5 rounded-xl bg-gray-200/60 dark:bg-gray-700/60 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 text-sm font-bold transition-all"
-                title="Limpiar filtros"
+              <option value="todas">Todas las Categorías</option>
+              {categories?.map((cat) => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </select>
+
+            {/* Filtro Ubicación */}
+            <select
+              name="location"
+              defaultValue={locationFilter || "todas"}
+              className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+            >
+              <option value="todas">Todas las Ubicaciones</option>
+              {locations?.map((loc) => (
+                <option key={loc.id} value={loc.id}>{loc.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 md:flex gap-3 w-full xl:w-auto">
+            {/* Filtro Fecha: Desde */}
+            <div className="flex items-center bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 rounded-xl px-3 py-1.5 w-full md:w-auto focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
+              <label className="text-xs font-bold text-gray-500 dark:text-gray-400 mr-2 uppercase tracking-wider">Desde:</label>
+              <input
+                type="date"
+                name="from"
+                defaultValue={isFromValid ? from : ""}
+                className="bg-transparent text-gray-900 dark:text-white text-sm outline-none w-full"
+              />
+            </div>
+
+            {/* Filtro Fecha: Hasta */}
+            <div className="flex items-center bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 rounded-xl px-3 py-1.5 w-full md:w-auto focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
+              <label className="text-xs font-bold text-gray-500 dark:text-gray-400 mr-2 uppercase tracking-wider">Hasta:</label>
+              <input
+                type="date"
+                name="to"
+                defaultValue={isToValid ? to : ""}
+                className="bg-transparent text-gray-900 dark:text-white text-sm outline-none w-full"
+              />
+            </div>
+
+            {/* Selector de Estado */}
+            <select
+              name="status"
+              defaultValue={statusFilter || "todos"}
+              className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+            >
+              <option value="todos">Todos los Estados</option>
+              <option value="disponible">Disponibles</option>
+              <option value="asignado">Asignados</option>
+              <option value="en_reparacion">En Reparación</option>
+              <option value="baja">Dado de Baja</option>
+            </select>
+
+            {/* Botones */}
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <button
+                type="submit"
+                className="flex-1 md:flex-none px-5 py-2.5 rounded-xl bg-blue-600/90 hover:bg-blue-600 text-white shadow-md shadow-blue-500/20 text-sm font-bold transition-all"
               >
-                ✕
-              </Link>
-            )}
+                Filtrar
+              </button>
+              {hasActiveFilters && (
+                <Link
+                  href="/dashboard/activos"
+                  className="flex items-center justify-center px-4 py-2.5 rounded-xl bg-gray-200/60 dark:bg-gray-700/60 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 text-sm font-bold transition-all"
+                  title="Limpiar filtros"
+                >
+                  ✕
+                </Link>
+              )}
+            </div>
           </div>
         </form>
       </div>
