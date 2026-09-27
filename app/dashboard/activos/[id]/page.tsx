@@ -467,7 +467,7 @@ export default function DetalleActivoPage({
             Bitácora de Mantenimiento
           </h2>
           <Link
-            href={`/dashboard/activos/${asset.id}/mantenimiento`}
+            href={`/dashboard/mantenimiento?asset_id=${asset.id}`}
             className="px-4 py-2 rounded-xl text-xs font-bold text-blue-700 dark:text-blue-300 bg-blue-100/50 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-800/50 transition-colors border border-blue-200 dark:border-blue-800"
           >
             + Registrar Incidencia
