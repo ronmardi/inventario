@@ -12,6 +12,12 @@ export async function invitarMiembro(formData: FormData) {
       return { error: "Faltan datos obligatorios." };
     }
 
+    // Validar que el rol recibido coincida con el esquema unificado (employee, it_technician, superadmin)
+    const validRoles = ["employee", "it_technician", "superadmin"];
+    if (!validRoles.includes(role)) {
+      return { error: "El rol seleccionado no es válido." };
+    }
+
     // 1. Verificar la sesión y rol del usuario que realiza la petición
     const supabase = await createClient();
     const {
@@ -28,14 +34,15 @@ export async function invitarMiembro(formData: FormData) {
       .eq("id", user.id)
       .single();
 
+    // Permitir invitaciones solo a perfiles superadmin o it_technician
     if (
       !currentProfile?.client_id ||
-      (currentProfile.role !== "admin" && currentProfile.role !== "superadmin")
+      (currentProfile.role !== "superadmin" && currentProfile.role !== "it_technician")
     ) {
       return { error: "No tienes permisos suficientes para invitar miembros a la empresa." };
     }
 
-    // 2. Validar individualmente cada variable de entorno para identificar exactamente cuál falta
+    // 2. Validar que las variables de entorno existan en Node.js
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
