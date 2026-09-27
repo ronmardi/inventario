@@ -69,50 +69,59 @@ export default async function EquipoPage() {
             </thead>
             <tbody className="divide-y divide-gray-200/40 dark:divide-gray-800/40 text-gray-800 dark:text-gray-200">
               {teamMembers && teamMembers.length > 0 ? (
-                teamMembers.map((member) => (
-                  <tr key={member.id} className="hover:bg-white/40 dark:hover:bg-gray-800/40 transition-colors">
-                    <td className="py-4 px-6">
-                      <div className="flex items-center space-x-3">
-                        {/* Avatar autogenerado con la primera letra */}
-                        <div className="w-10 h-10 rounded-xl bg-linear-to-br from-blue-500 to-indigo-600 text-white font-bold flex items-center justify-center shadow-md">
-                          {(member.full_name || member.email).charAt(0).toUpperCase()}
+                teamMembers.map((member) => {
+                  // Mapeo estricto de los 3 roles del sistema
+                  let roleBadge = { label: "Desconocido", class: "bg-gray-100 text-gray-700 border-gray-200" };
+
+                  if (member.role === "superadmin") {
+                    roleBadge = { label: "Administrador", class: "bg-purple-500/10 text-purple-700 border-purple-500/30 dark:text-purple-300" };
+                  } else if (member.role === "it_technician") {
+                    roleBadge = { label: "Técnico / Staff", class: "bg-blue-500/10 text-blue-700 border-blue-500/30 dark:text-blue-300" };
+                  } else if (member.role === "employee") {
+                    roleBadge = { label: "Empleado", class: "bg-green-500/10 text-green-700 border-green-500/30 dark:text-green-300" };
+                  }
+
+                  return (
+                    <tr key={member.id} className="hover:bg-white/40 dark:hover:bg-gray-800/40 transition-colors">
+                      <td className="py-4 px-6">
+                        <div className="flex items-center space-x-3">
+                          {/* Avatar autogenerado con la primera letra */}
+                          <div className="w-10 h-10 rounded-xl bg-linear-to-br from-blue-500 to-indigo-600 text-white font-bold flex items-center justify-center shadow-md">
+                            {(member.full_name || member.email).charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-900 dark:text-white">
+                              {member.full_name || "Usuario sin nombre"}
+                              {member.id === user.id && (
+                                <span className="ml-2 px-2 py-0.5 text-[10px] uppercase font-black bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-500/30 rounded-full">
+                                  Tú
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{member.email}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-bold text-gray-900 dark:text-white">
-                            {member.full_name || "Usuario sin nombre"}
-                            {member.id === user.id && (
-                              <span className="ml-2 px-2 py-0.5 text-[10px] uppercase font-black bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-500/30 rounded-full">
-                                Tú
-                              </span>
-                            )}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">{member.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border backdrop-blur-sm ${
-                        member.role === 'admin' || member.role === 'superadmin' 
-                          ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30'
-                          : 'bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/30'
-                      }`}>
-                        {member.role === 'admin' || member.role === 'superadmin' ? 'Administrador' : 'Técnico / Staff'}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-xs font-semibold">
-                      {new Date(member.created_at).toLocaleDateString("es-CL")}
-                    </td>
-                    <td className="py-4 px-6 text-right">
-                      {member.id !== user.id ? (
-                        <button className="text-blue-600 hover:text-blue-500 dark:text-blue-400 font-semibold text-xs transition-colors">
-                          Editar Rol
-                        </button>
-                      ) : (
-                        <span className="text-xs text-gray-400 italic">No puedes editarte a ti mismo</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border backdrop-blur-sm ${roleBadge.class}`}>
+                          {roleBadge.label}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-gray-600 dark:text-gray-300 text-xs font-semibold">
+                        {new Date(member.created_at).toLocaleDateString("es-CL")}
+                      </td>
+                      <td className="py-4 px-6 text-right">
+                        {member.id !== user.id ? (
+                          <button className="text-blue-600 hover:text-blue-500 dark:text-blue-400 font-semibold text-xs transition-colors">
+                            Editar Rol
+                          </button>
+                        ) : (
+                          <span className="text-xs text-gray-400 italic">No puedes editarte a ti mismo</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan={4} className="py-8 text-center text-gray-500 dark:text-gray-400 font-medium">
