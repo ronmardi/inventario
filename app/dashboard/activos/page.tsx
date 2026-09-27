@@ -45,9 +45,10 @@ export default function DetalleActivoPage({
 
   useEffect(() => {
     async function loadAsset() {
-      // 1. Validar que el parámetro id exista y no sea la cadena "undefined"
+      // 1. Prevenir consultas inválidas si id no está definido o es string 'undefined'
       if (!id || id === "undefined") {
         console.error("ID de activo no válido.");
+        setLoading(false);
         router.push("/dashboard/activos");
         return;
       }
@@ -59,14 +60,14 @@ export default function DetalleActivoPage({
           return;
         }
 
-        // 2. Obtener la empresa del usuario con maybeSingle() para evitar excepciones
+        // 2. Obtener la empresa del usuario validando client_id con maybeSingle
         const { data: userProfile } = await supabase
           .from("profiles")
           .select("client_id")
           .eq("id", user.id)
           .maybeSingle();
 
-        if (userProfile?.client_id) {
+        if (userProfile?.client_id && typeof userProfile.client_id === "string") {
           const { data: clientData } = await supabase
             .from("clients")
             .select("company_name")
@@ -78,7 +79,7 @@ export default function DetalleActivoPage({
           }
         }
 
-        // 3. Cargar detalles del activo
+        // 3. Cargar detalles del activo con maybeSingle() para evitar lanzar HTTP 400
         const { data, error } = await supabase
           .from("assets")
           .select(
@@ -101,7 +102,7 @@ export default function DetalleActivoPage({
           .maybeSingle();
 
         if (error || !data) {
-          console.error("Error al cargar el activo:", error);
+          console.error("Error o activo no encontrado:", error);
           router.push("/dashboard/activos");
         } else {
           if (data.maintenance_logs && Array.isArray(data.maintenance_logs)) {
@@ -112,10 +113,9 @@ export default function DetalleActivoPage({
           setAsset(data as unknown as AssetDetail);
         }
       } catch (err) {
-        console.error("Error inesperado en la consulta:", err);
+        console.error("Excepción inesperada al cargar activo:", err);
         router.push("/dashboard/activos");
       } finally {
-        // Garantiza que la pantalla de carga siempre se desactive
         setLoading(false);
       }
     }
@@ -241,6 +241,7 @@ export default function DetalleActivoPage({
           {companyName}
         </p>
         
+        {/* Renderizado de QR autónomo sin llamadas a red */}
         <div className="my-3 flex justify-center">
           <QRCodeSVG value={asset.asset_tag} size={180} level="M" />
         </div>
@@ -262,6 +263,7 @@ export default function DetalleActivoPage({
           </h2>
           
           <div className="p-4 bg-white rounded-2xl shadow-inner border border-gray-200/80 mb-4 inline-flex justify-center items-center">
+            {/* Renderizado de QR en pantalla */}
             <QRCodeSVG value={asset.asset_tag} size={192} level="H" />
           </div>
 
