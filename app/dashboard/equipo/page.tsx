@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import InvitarMiembroModal from "./InvitarMiembroModal";
+import EditarRolModal from "./EditarRolModal";
 
 export default async function EquipoPage() {
   const supabase = await createClient();
@@ -112,9 +113,11 @@ export default async function EquipoPage() {
                       </td>
                       <td className="py-4 px-6 text-right">
                         {member.id !== user.id ? (
-                          <button className="text-blue-600 hover:text-blue-500 dark:text-blue-400 font-semibold text-xs transition-colors">
-                            Editar Rol
-                          </button>
+                          <EditarRolModal 
+                            memberId={member.id} 
+                            memberName={member.full_name || member.email || "Usuario"} 
+                            currentRole={member.role} 
+                          />
                         ) : (
                           <span className="text-xs text-gray-400 italic">No puedes editarte a ti mismo</span>
                         )}
