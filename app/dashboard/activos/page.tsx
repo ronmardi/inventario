@@ -15,6 +15,15 @@ interface MaintenanceLog {
   completed_at?: string | null;
 }
 
+// Interfaz para el historial de asignaciones
+interface AssignmentLog {
+  id: string;
+  assigned_at: string;
+  returned_at?: string | null;
+  notes?: string | null;
+  profiles?: { full_name?: string | null; email?: string | null } | { full_name?: string | null; email?: string | null }[] | null;
+}
+
 interface AssetDetail {
   id: string;
   asset_tag: string;
@@ -39,6 +48,7 @@ export default function DetalleActivoPage({
 
   const [asset, setAsset] = useState<AssetDetail | null>(null);
   const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [companyName, setCompanyName] = useState<string>("INVENTARIO TI");
 
@@ -47,7 +57,6 @@ export default function DetalleActivoPage({
     const supabase = createClient();
 
     async function loadAssetData() {
-      // 1. Validar que el parámetro id exista y sea válido
       if (!id || id === "undefined") {
         console.error("ID de activo no válido.");
         if (isMounted) setLoading(false);
@@ -62,7 +71,7 @@ export default function DetalleActivoPage({
           return;
         }
 
-        // 2. Obtener la empresa del usuario
+        // 1. Obtener la empresa del usuario
         const { data: userProfile } = await supabase
           .from("profiles")
           .select("client_id")
@@ -81,7 +90,7 @@ export default function DetalleActivoPage({
           }
         }
 
-        // 3. Cargar detalles del activo (sin Join anidado para evitar error 400 de Supabase)
+        // 2. Cargar detalles del activo
         const { data: assetData, error: assetError } = await supabase
           .from("assets")
           .select(
@@ -108,16 +117,30 @@ export default function DetalleActivoPage({
           return;
         }
 
-        // 4. Cargar mantenimientos en consulta independiente
+        // 3. Cargar mantenimientos
         const { data: logsData } = await supabase
           .from("maintenance_logs")
           .select("id, issue_description, cost, started_at, completed_at")
           .eq("asset_id", id)
           .order("started_at", { ascending: false });
 
+        // 4. Cargar historial de asignaciones
+        const { data: assignmentsData } = await supabase
+          .from("asset_assignments")
+          .select(`
+            id,
+            assigned_at,
+            returned_at,
+            notes,
+            profiles ( full_name, email )
+          `)
+          .eq("asset_id", id)
+          .order("assigned_at", { ascending: false });
+
         if (isMounted) {
           setAsset(assetData as unknown as AssetDetail);
           setMaintenanceLogs(logsData || []);
+          setAssignments((assignmentsData as unknown as AssignmentLog[]) || []);
         }
       } catch (err) {
         console.error("Excepción inesperada al cargar activo:", err);
@@ -366,6 +389,75 @@ export default function DetalleActivoPage({
         </div>
       </div>
 
+      {/* Historial de Asignaciones */}
+      <div className="print:hidden p-8 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-gray-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)]">
+        <div className="flex items-center justify-between border-b border-gray-200/50 dark:border-gray-700/50 pb-4 mb-4">
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
+            <UserIcon className="w-5 h-5 mr-2 text-purple-600 dark:text-purple-400" />
+            Historial de Asignaciones
+          </h2>
+          <Link
+            href={`/dashboard/activos/${asset.id}/asignar`}
+            className="px-4 py-2 rounded-xl text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-100/50 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors border border-purple-200 dark:border-purple-800"
+          >
+            + Nueva Asignación
+          </Link>
+        </div>
+
+        <div className="overflow-x-auto custom-scrollbar pb-2">
+          <table className="w-full text-left border-collapse text-sm min-w-max">
+            <thead>
+              <tr className="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider border-b border-gray-200/50 dark:border-gray-700/50">
+                <th className="py-3 px-4 font-bold">Asignado a</th>
+                <th className="py-3 px-4 font-bold">Fecha Asignación</th>
+                <th className="py-3 px-4 font-bold">Estado / Devolución</th>
+                <th className="py-3 px-4 font-bold text-right">Notas</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200/40 dark:divide-gray-800/40">
+              {assignments && assignments.length > 0 ? (
+                assignments.map((item) => {
+                  const isReturned = !!item.returned_at;
+                  const profileData = Array.isArray(item.profiles)
+                    ? item.profiles[0]
+                    : item.profiles;
+                  const userName = profileData?.full_name || profileData?.email || "Usuario no especificado";
+
+                  return (
+                    <tr key={item.id} className="hover:bg-white/40 dark:hover:bg-gray-800/40 transition-colors">
+                      <td className="py-4 px-4 font-semibold text-gray-900 dark:text-white">
+                        {userName}
+                      </td>
+                      <td className="py-4 px-4 font-mono text-gray-700 dark:text-gray-300">
+                        {new Date(item.assigned_at).toLocaleDateString("es-CL")}
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border backdrop-blur-sm ${
+                          isReturned
+                            ? "bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/30"
+                            : "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30 animate-pulse"
+                        }`}>
+                          {isReturned ? `Devuelto: ${new Date(item.returned_at!).toLocaleDateString("es-CL")}` : "Actualmente Asignado"}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-right text-xs text-gray-500 dark:text-gray-400">
+                        {item.notes || "—"}
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={4} className="py-8 text-center text-gray-500 dark:text-gray-400 font-medium bg-gray-50/30 dark:bg-gray-800/20 rounded-xl">
+                    No hay registro de asignaciones previas para este equipo.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Bitácora de Mantenimiento */}
       <div className="print:hidden p-8 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-gray-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)]">
         <div className="flex items-center justify-between border-b border-gray-200/50 dark:border-gray-700/50 pb-4 mb-4">
@@ -487,6 +579,14 @@ function ToolIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.83M11.42 15.17l-4.95-4.95a1.875 1.875 0 010-2.652L8.5 5.5m2.92 9.67L9.5 17.5M8.5 5.5l1.65-1.65a1.875 1.875 0 012.652 0L15.17 6.22m-6.67-.72L6.13 7.87a1.875 1.875 0 000 2.652l4.95 4.95m-9.58 6.08l4.41-4.41" />
+    </svg>
+  );
+}
+
+function UserIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
     </svg>
   );
 }
