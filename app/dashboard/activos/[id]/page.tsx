@@ -4,14 +4,24 @@ import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState, use } from "react";
+import { QRCodeSVG } from "qrcode.react";
 
-// Agregamos la interfaz para la bitácora de mantenimiento
+// Interfaz para la bitácora de mantenimiento
 interface MaintenanceLog {
   id: string;
   issue_description: string;
   cost: number | null;
   started_at: string;
   completed_at?: string | null;
+}
+
+// Interfaz para el historial de asignaciones
+interface AssignmentLog {
+  id: string;
+  assigned_at: string;
+  returned_at?: string | null;
+  notes?: string | null;
+  profiles?: { full_name?: string | null; email?: string | null } | { full_name?: string | null; email?: string | null }[] | null;
 }
 
 interface AssetDetail {
@@ -26,7 +36,6 @@ interface AssetDetail {
   created_at: string;
   categories: { id: string; name: string } | { id: string; name: string }[] | null;
   locations: { id: string; name: string; address: string | null } | { id: string; name: string; address: string | null }[] | null;
-  maintenance_logs?: MaintenanceLog[];
 }
 
 export default function DetalleActivoPage({
@@ -36,76 +45,120 @@ export default function DetalleActivoPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const supabase = createClient();
 
   const [asset, setAsset] = useState<AssetDetail | null>(null);
+  const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentLog[]>([]);
   const [loading, setLoading] = useState(true);
-  // Estado para el nombre dinámico de la empresa
   const [companyName, setCompanyName] = useState<string>("INVENTARIO TI");
 
   useEffect(() => {
-    async function loadAsset() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push("/login");
+    let isMounted = true;
+    const supabase = createClient();
+
+    async function loadAssetData() {
+      // 1. Validar que el parámetro id exista y no sea la cadena "undefined"
+      if (!id || id === "undefined") {
+        console.error("ID de activo no válido.");
+        if (isMounted) setLoading(false);
+        router.push("/dashboard/activos");
         return;
       }
 
-      // 1. Obtener la empresa vinculada al usuario
-      const { data: userProfile } = await supabase
-        .from("profiles")
-        .select("client_id")
-        .eq("id", user.id)
-        .single();
-
-      if (userProfile?.client_id) {
-        const { data: clientData } = await supabase
-          .from("clients")
-          .select("company_name")
-          .eq("id", userProfile.client_id)
-          .single();
-
-        if (clientData?.company_name) {
-          setCompanyName(clientData.company_name);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          router.push("/login");
+          return;
         }
-      }
 
-      // 2. Cargar los detalles del activo y sus mantenimientos
-      const { data, error } = await supabase
-        .from("assets")
-        .select(
+        // 2. Obtener la empresa del usuario
+        const { data: userProfile } = await supabase
+          .from("profiles")
+          .select("client_id")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (userProfile?.client_id && typeof userProfile.client_id === "string") {
+          const { data: clientData } = await supabase
+            .from("clients")
+            .select("company_name")
+            .eq("id", userProfile.client_id)
+            .maybeSingle();
+
+          if (clientData?.company_name && isMounted) {
+            setCompanyName(clientData.company_name);
+          }
+        }
+
+        // 3. Cargar detalles del activo (sin joins complejos para evitar error 400)
+        const { data: assetData, error: assetError } = await supabase
+          .from("assets")
+          .select(
+            `
+            id,
+            asset_tag,
+            serial_number,
+            name,
+            model,
+            status,
+            purchase_date,
+            notes,
+            created_at,
+            categories ( id, name ),
+            locations ( id, name, address )
           `
-          id,
-          asset_tag,
-          serial_number,
-          name,
-          model,
-          status,
-          purchase_date,
-          notes,
-          created_at,
-          categories ( id, name ),
-          locations ( id, name, address ),
-          maintenance_logs ( id, issue_description, cost, started_at, completed_at )
-        `
-        )
-        .eq("id", id)
-        .single();
+          )
+          .eq("id", id)
+          .maybeSingle();
 
-      if (error || !data) {
-        router.push("/dashboard/activos");
-      } else {
-        if (data.maintenance_logs && Array.isArray(data.maintenance_logs)) {
-          data.maintenance_logs.sort((a, b) => 
-            new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
-          );
+        if (assetError || !assetData) {
+          console.error("Error al cargar el activo:", assetError);
+          if (isMounted) router.push("/dashboard/activos");
+          return;
         }
-        setAsset(data as unknown as AssetDetail);
+
+        // 4. Cargar bitácora de mantenimientos
+        const { data: logsData } = await supabase
+          .from("maintenance_logs")
+          .select("id, issue_description, cost, started_at, completed_at")
+          .eq("asset_id", id)
+          .order("started_at", { ascending: false });
+
+        // 5. Cargar historial de asignaciones
+        const { data: assignmentsData } = await supabase
+          .from("asset_assignments")
+          .select(`
+            id,
+            assigned_at,
+            returned_at,
+            notes,
+            profiles ( full_name, email )
+          `)
+          .eq("asset_id", id)
+          .order("assigned_at", { ascending: false });
+
+        if (isMounted) {
+          setAsset(assetData as unknown as AssetDetail);
+          setMaintenanceLogs(logsData || []);
+          setAssignments((assignmentsData as unknown as AssignmentLog[]) || []);
+        }
+      } catch (err) {
+        console.error("Excepción inesperada al cargar activo:", err);
+        if (isMounted) router.push("/dashboard/activos");
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-      setLoading(false);
     }
-    loadAsset();
-  }, [id, supabase, router]);
+
+    loadAssetData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id, router]);
 
   if (loading) {
     return (
@@ -153,14 +206,10 @@ export default function DetalleActivoPage({
     class: "bg-gray-500/10 text-gray-500 border-gray-500/30",
   };
 
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-    asset.asset_tag
-  )}`;
-
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
       
-      {/* Regla CSS global para forzar la ocultación del Layout (Sidebar y Header) al imprimir */}
+      {/* Ocultación de Layout al imprimir */}
       <style>{`
         @media print {
           aside, header, nav, .pointer-events-none {
@@ -175,7 +224,7 @@ export default function DetalleActivoPage({
         }
       `}</style>
       
-      {/* Encabezado Ocultable al Imprimir */}
+      {/* Encabezado Principal */}
       <div className="print:hidden flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-6 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-white/60 dark:border-gray-700/50 shadow-sm transition-all">
         <div className="flex items-center space-x-4">
           <Link
@@ -200,7 +249,6 @@ export default function DetalleActivoPage({
           </div>
         </div>
 
-        {/* Acciones principales */}
         <div className="flex flex-wrap items-center gap-3">
           <Link
             href={`/dashboard/activos/${asset.id}/editar`}
@@ -224,13 +272,16 @@ export default function DetalleActivoPage({
         </div>
       </div>
 
-      {/* ETIQUETA IMPRIMIBLE (NOMBRE DE LA EMPRESA DINÁMICO) */}
-      <div className="hidden print:block print:p-8 print:bg-white text-black font-sans text-center max-w-xs mx-auto border-2 border-black rounded-xl p-4 my-8">
-        <p className="font-extrabold text-lg uppercase tracking-wider truncate border-b-2 border-black pb-1 mb-2">
+      {/* ETIQUETA IMPRIMIBLE CON QR NATIVO AUTÓNOMO */}
+      <div className="hidden print:flex print:flex-col print:items-center print:justify-center print:p-8 print:bg-white text-black font-sans text-center max-w-xs mx-auto border-2 border-black rounded-xl p-4 my-8">
+        <p className="font-extrabold text-lg uppercase tracking-wider truncate border-b-2 border-black pb-1 mb-2 w-full">
           {companyName}
         </p>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={qrUrl} alt="Código QR" className="w-48 h-48 mx-auto my-2 object-contain" />
+        
+        <div className="my-3 flex justify-center">
+          <QRCodeSVG value={asset.asset_tag} size={180} level="M" />
+        </div>
+
         <p className="font-mono font-black text-2xl text-black">{asset.asset_tag}</p>
         <p className="text-xs font-bold text-gray-700 mt-1 uppercase">{asset.name}</p>
         {asset.serial_number && (
@@ -247,9 +298,8 @@ export default function DetalleActivoPage({
             Código QR de Activo
           </h2>
           
-          <div className="p-4 bg-white rounded-2xl shadow-inner border border-gray-200/80 mb-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={qrUrl} alt="Código QR" className="w-48 h-48 object-contain" />
+          <div className="p-4 bg-white rounded-2xl shadow-inner border border-gray-200/80 mb-4 inline-flex justify-center items-center">
+            <QRCodeSVG value={asset.asset_tag} size={192} level="H" />
           </div>
 
           <p className="font-mono font-black text-2xl text-blue-600 dark:text-blue-400 mb-1">
@@ -262,7 +312,7 @@ export default function DetalleActivoPage({
           <PrintButton fullWidth />
         </div>
 
-        {/* Columna Derecha: Especificaciones */}
+        {/* Columna Derecha: Ficha Técnica */}
         <div className="lg:col-span-2 p-8 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-gray-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] space-y-6">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white border-b border-gray-200/50 dark:border-gray-700/50 pb-3">
             Ficha Técnica del Equipo
@@ -340,7 +390,76 @@ export default function DetalleActivoPage({
         </div>
       </div>
 
-      {/* BITÁCORA DE MANTENIMIENTO (P3.19) */}
+      {/* HISTORIAL DE ASIGNACIONES */}
+      <div className="print:hidden p-8 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-gray-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)]">
+        <div className="flex items-center justify-between border-b border-gray-200/50 dark:border-gray-700/50 pb-4 mb-4">
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
+            <UserIcon className="w-5 h-5 mr-2 text-purple-600 dark:text-purple-400" />
+            Historial de Asignaciones
+          </h2>
+          <Link
+            href={`/dashboard/activos/${asset.id}/asignar`}
+            className="px-4 py-2 rounded-xl text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-100/50 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors border border-purple-200 dark:border-purple-800"
+          >
+            + Nueva Asignación
+          </Link>
+        </div>
+
+        <div className="overflow-x-auto custom-scrollbar pb-2">
+          <table className="w-full text-left border-collapse text-sm min-w-max">
+            <thead>
+              <tr className="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider border-b border-gray-200/50 dark:border-gray-700/50">
+                <th className="py-3 px-4 font-bold">Asignado a</th>
+                <th className="py-3 px-4 font-bold">Fecha Asignación</th>
+                <th className="py-3 px-4 font-bold">Estado / Devolución</th>
+                <th className="py-3 px-4 font-bold text-right">Notas</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200/40 dark:divide-gray-800/40">
+              {assignments && assignments.length > 0 ? (
+                assignments.map((item) => {
+                  const isReturned = !!item.returned_at;
+                  const profileData = Array.isArray(item.profiles)
+                    ? item.profiles[0]
+                    : item.profiles;
+                  const userName = profileData?.full_name || profileData?.email || "Usuario no especificado";
+
+                  return (
+                    <tr key={item.id} className="hover:bg-white/40 dark:hover:bg-gray-800/40 transition-colors">
+                      <td className="py-4 px-4 font-semibold text-gray-900 dark:text-white">
+                        {userName}
+                      </td>
+                      <td className="py-4 px-4 font-mono text-gray-700 dark:text-gray-300">
+                        {new Date(item.assigned_at).toLocaleDateString("es-CL")}
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border backdrop-blur-sm ${
+                          isReturned
+                            ? "bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/30"
+                            : "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30 animate-pulse"
+                        }`}>
+                          {isReturned ? `Devuelto: ${new Date(item.returned_at!).toLocaleDateString("es-CL")}` : "Actualmente Asignado"}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-right text-xs text-gray-500 dark:text-gray-400">
+                        {item.notes || "—"}
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={4} className="py-8 text-center text-gray-500 dark:text-gray-400 font-medium bg-gray-50/30 dark:bg-gray-800/20 rounded-xl">
+                    No hay registro de asignaciones previas para este equipo.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Bitácora de Mantenimiento */}
       <div className="print:hidden p-8 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-3xl border border-white/60 dark:border-gray-700/50 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)]">
         <div className="flex items-center justify-between border-b border-gray-200/50 dark:border-gray-700/50 pb-4 mb-4">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
@@ -365,8 +484,8 @@ export default function DetalleActivoPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200/40 dark:divide-gray-800/40">
-              {asset.maintenance_logs && asset.maintenance_logs.length > 0 ? (
-                asset.maintenance_logs.map((log) => {
+              {maintenanceLogs && maintenanceLogs.length > 0 ? (
+                maintenanceLogs.map((log) => {
                   const isCompleted = !!log.completed_at;
                   const badgeClass = isCompleted 
                     ? "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/30" 
@@ -415,7 +534,6 @@ export default function DetalleActivoPage({
   );
 }
 
-// Botón de Impresión de Cliente
 function PrintButton({ fullWidth }: { fullWidth?: boolean }) {
   return (
     <button
@@ -434,7 +552,6 @@ function PrintButton({ fullWidth }: { fullWidth?: boolean }) {
   );
 }
 
-// Iconos SVG
 function ArrowLeftIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}>
@@ -463,6 +580,14 @@ function ToolIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.83M11.42 15.17l-4.95-4.95a1.875 1.875 0 010-2.652L8.5 5.5m2.92 9.67L9.5 17.5M8.5 5.5l1.65-1.65a1.875 1.875 0 012.652 0L15.17 6.22m-6.67-.72L6.13 7.87a1.875 1.875 0 000 2.652l4.95 4.95m-9.58 6.08l4.41-4.41" />
+    </svg>
+  );
+}
+
+function UserIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
     </svg>
   );
 }
