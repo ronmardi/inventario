@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
+import { sanitizeSearchQuery } from "@/utils/sanitize";
 
 interface AssetResult {
   id: string;
@@ -30,14 +31,8 @@ export default function EscanerPage() {
 
   // Función para consultar el equipo en Supabase por código o número de serie
   const lookupAsset = async (code: string) => {
-    // P0.5: Sanitizar entrada escapando solo caracteres reservados de PostgREST,
-    // preservando caracteres válidos de búsqueda como puntos, comas o paréntesis.
-    const escapedCode = code
-      .replace(/\\/g, "\\\\")
-      .replace(/"/g, '\\"')
-      .replace(/%/g, "\\%")
-      .replace(/_/g, "\\_")
-      .trim();
+    // Usamos el sanitizador unificado para proteger la consulta
+    const escapedCode = sanitizeSearchQuery(code);
 
     if (!escapedCode) return;
 
@@ -128,7 +123,6 @@ export default function EscanerPage() {
         activeStream.getTracks().forEach((track) => track.stop());
       }
     };
-    // Deshabilitamos la advertencia de ESLint ya que no queremos incluir lookupAsset (cambia su referencia constantemente)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isScanning]);
 
