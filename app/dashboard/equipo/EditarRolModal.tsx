@@ -58,7 +58,7 @@ export default function EditarRolModal({ memberId, memberName, currentRole }: Ed
   };
 
   const modalContent = isOpen ? (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-fade-in">
       <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-200 dark:border-gray-800">
         <div className="p-6">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">
