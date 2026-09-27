@@ -105,11 +105,12 @@ export default function InvitarMiembroModal() {
                   required 
                   className="w-full px-4 py-2.5 rounded-xl bg-white/60 dark:bg-gray-800/60 border border-white/50 dark:border-gray-600/50 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500/50 shadow-inner transition-all cursor-pointer"
                 >
-                  <option value="it_technician">Técnico / Staff</option>
-                  <option value="admin">Administrador</option>
+                  <option value="employee">Empleado / Usuario final</option>
+                  <option value="it_technician">Técnico TI</option>
+                  <option value="superadmin">Administrador General</option>
                 </select>
                 <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  El rol de Administrador tiene acceso total a configuraciones y perfiles de la empresa.
+                  Los Administradores Generales tienen acceso total a perfiles, facturación y gestión del equipo.
                 </p>
               </div>
               
