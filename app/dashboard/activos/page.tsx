@@ -45,65 +45,81 @@ export default function DetalleActivoPage({
 
   useEffect(() => {
     async function loadAsset() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push("/login");
+      // 1. Validar que el parámetro id exista y no sea la cadena "undefined"
+      if (!id || id === "undefined") {
+        console.error("ID de activo no válido.");
+        router.push("/dashboard/activos");
         return;
       }
 
-      // 1. Obtener el nombre de la empresa del usuario
-      const { data: userProfile } = await supabase
-        .from("profiles")
-        .select("client_id")
-        .eq("id", user.id)
-        .single();
-
-      if (userProfile?.client_id) {
-        const { data: clientData } = await supabase
-          .from("clients")
-          .select("company_name")
-          .eq("id", userProfile.client_id)
-          .single();
-
-        if (clientData?.company_name) {
-          setCompanyName(clientData.company_name);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          router.push("/login");
+          return;
         }
-      }
 
-      // 2. Cargar detalles del activo
-      const { data, error } = await supabase
-        .from("assets")
-        .select(
+        // 2. Obtener la empresa del usuario con maybeSingle() para evitar excepciones
+        const { data: userProfile } = await supabase
+          .from("profiles")
+          .select("client_id")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (userProfile?.client_id) {
+          const { data: clientData } = await supabase
+            .from("clients")
+            .select("company_name")
+            .eq("id", userProfile.client_id)
+            .maybeSingle();
+
+          if (clientData?.company_name) {
+            setCompanyName(clientData.company_name);
+          }
+        }
+
+        // 3. Cargar detalles del activo
+        const { data, error } = await supabase
+          .from("assets")
+          .select(
+            `
+            id,
+            asset_tag,
+            serial_number,
+            name,
+            model,
+            status,
+            purchase_date,
+            notes,
+            created_at,
+            categories ( id, name ),
+            locations ( id, name, address ),
+            maintenance_logs ( id, issue_description, cost, started_at, completed_at )
           `
-          id,
-          asset_tag,
-          serial_number,
-          name,
-          model,
-          status,
-          purchase_date,
-          notes,
-          created_at,
-          categories ( id, name ),
-          locations ( id, name, address ),
-          maintenance_logs ( id, issue_description, cost, started_at, completed_at )
-        `
-        )
-        .eq("id", id)
-        .single();
+          )
+          .eq("id", id)
+          .maybeSingle();
 
-      if (error || !data) {
-        router.push("/dashboard/activos");
-      } else {
-        if (data.maintenance_logs && Array.isArray(data.maintenance_logs)) {
-          data.maintenance_logs.sort((a, b) => 
-            new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
-          );
+        if (error || !data) {
+          console.error("Error al cargar el activo:", error);
+          router.push("/dashboard/activos");
+        } else {
+          if (data.maintenance_logs && Array.isArray(data.maintenance_logs)) {
+            data.maintenance_logs.sort((a, b) => 
+              new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
+            );
+          }
+          setAsset(data as unknown as AssetDetail);
         }
-        setAsset(data as unknown as AssetDetail);
+      } catch (err) {
+        console.error("Error inesperado en la consulta:", err);
+        router.push("/dashboard/activos");
+      } finally {
+        // Garantiza que la pantalla de carga siempre se desactive
+        setLoading(false);
       }
-      setLoading(false);
     }
+
     loadAsset();
   }, [id, supabase, router]);
 
@@ -225,7 +241,6 @@ export default function DetalleActivoPage({
           {companyName}
         </p>
         
-        {/* Renderizado de QR autónomo sin llamadas a red */}
         <div className="my-3 flex justify-center">
           <QRCodeSVG value={asset.asset_tag} size={180} level="M" />
         </div>
@@ -247,7 +262,6 @@ export default function DetalleActivoPage({
           </h2>
           
           <div className="p-4 bg-white rounded-2xl shadow-inner border border-gray-200/80 mb-4 inline-flex justify-center items-center">
-            {/* Renderizado de QR en pantalla */}
             <QRCodeSVG value={asset.asset_tag} size={192} level="H" />
           </div>
 
