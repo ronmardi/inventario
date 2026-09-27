@@ -28,8 +28,9 @@ export default async function ActivosPage({
 
   const { q: searchQuery, status: statusFilter, from, to, page: pageParam } = await searchParams;
 
-  // Paginación server-side (10 registros por página)
-  const currentPage = Math.max(1, parseInt(pageParam || "1", 10));
+  // Paginación server-side con protección contra NaN
+  const parsedPage = parseInt(pageParam || "1", 10);
+  const currentPage = Number.isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage;
   const pageSize = 10;
   const fromIndex = (currentPage - 1) * pageSize;
   const toIndex = fromIndex + pageSize - 1;
@@ -65,16 +66,21 @@ export default async function ActivosPage({
     }
   }
 
-  // Filtro de estado
-  if (statusFilter && statusFilter !== "todos") {
+  // Filtro de estado con lista blanca
+  const validStatuses = ["disponible", "asignado", "en_reparacion", "baja"];
+  if (statusFilter && validStatuses.includes(statusFilter)) {
     query = query.eq("status", statusFilter);
   }
 
-  // Filtros de fecha (Desde / Hasta)
-  if (from) {
+  // Filtros de fecha sanitizados con Regex YYYY-MM-DD
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  const isFromValid = Boolean(from && dateRegex.test(from));
+  const isToValid = Boolean(to && dateRegex.test(to));
+
+  if (isFromValid) {
     query = query.gte("created_at", `${from}T00:00:00.000Z`);
   }
-  if (to) {
+  if (isToValid) {
     query = query.lte("created_at", `${to}T23:59:59.999Z`);
   }
 
@@ -94,9 +100,9 @@ export default async function ActivosPage({
   const buildPageUrl = (newPage: number) => {
     const params = new URLSearchParams();
     if (searchQuery) params.set("q", searchQuery);
-    if (statusFilter && statusFilter !== "todos") params.set("status", statusFilter);
-    if (from) params.set("from", from);
-    if (to) params.set("to", to);
+    if (statusFilter && validStatuses.includes(statusFilter)) params.set("status", statusFilter);
+    if (isFromValid && from) params.set("from", from);
+    if (isToValid && to) params.set("to", to);
     params.set("page", newPage.toString());
     return `/dashboard/activos?${params.toString()}`;
   };
@@ -105,26 +111,39 @@ export default async function ActivosPage({
   const statusStyles: Record<string, { label: string; class: string }> = {
     disponible: {
       label: "Disponible",
-      class: "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/30",
+      class:
+        "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/30",
     },
     asignado: {
       label: "Asignado",
-      class: "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30",
+      class:
+        "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30",
     },
     en_reparacion: {
       label: "En Reparación",
-      class: "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/30",
+      class:
+        "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/30",
     },
     baja: {
       label: "Dado de Baja",
-      class: "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30",
+      class:
+        "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30",
     },
   };
 
-  const hasActiveFilters = Boolean(searchQuery || (statusFilter && statusFilter !== "todos") || from || to);
+  const hasActiveFilters = Boolean(
+    searchQuery || (statusFilter && validStatuses.includes(statusFilter)) || isFromValid || isToValid
+  );
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      {/* Banner de error visible en pantalla si falla la base de datos */}
+      {error && (
+        <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-sm font-bold shadow-sm">
+          ⚠️ Ocurrió un problema al consultar el inventario: {error.message}
+        </div>
+      )}
+
       {/* Encabezado Principal */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-6 bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl shadow-[0_8px_32px_0_rgba(31,38,135,0.05)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.2)] border border-white/60 dark:border-gray-700/50 transition-all">
         <div>
@@ -169,7 +188,7 @@ export default async function ActivosPage({
             <input
               type="date"
               name="from"
-              defaultValue={from || ""}
+              defaultValue={isFromValid ? from : ""}
               className="bg-transparent text-gray-900 dark:text-white text-sm outline-none w-full"
             />
           </div>
@@ -180,7 +199,7 @@ export default async function ActivosPage({
             <input
               type="date"
               name="to"
-              defaultValue={to || ""}
+              defaultValue={isToValid ? to : ""}
               className="bg-transparent text-gray-900 dark:text-white text-sm outline-none w-full"
             />
           </div>
@@ -375,6 +394,7 @@ export default async function ActivosPage({
   );
 }
 
+// Iconos SVG
 function PlusIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" {...props}>
