@@ -13,8 +13,9 @@ export const config = {
      * - _next/static (archivos estáticos de Next.js)
      * - _next/image (imágenes optimizadas)
      * - favicon.ico (ícono del sitio)
+     * - terminos y politicas (páginas legales públicas)
      * - Imágenes estáticas (.svg, .png, .jpg, etc.)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|terminos|politicas|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
