@@ -28,9 +28,11 @@ export async function GET(request: Request) {
           ? `Empresa de ${user.user_metadata.full_name}` 
           : "Mi Empresa (Google)";
 
-        // Usamos la misma función RPC que tienes para registros con email
+        // Llamamos a la función enviando explícitamente el ID y el correo
         const { error: rpcError } = await supabase.rpc("registrar_empresa_inicial", {
-          p_company_name: defaultCompanyName
+          p_company_name: defaultCompanyName,
+          p_user_id: user.id,
+          p_email: user.email
         });
 
         if (rpcError) {
