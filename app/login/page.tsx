@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { useTheme } from "next-themes";
+import Link from "next/link";
 
 const FLOATING_ITEMS = [
   { emoji: "📦", left: "10%", delay: "-2s", duration: "15s", size: "text-4xl" },
@@ -38,7 +39,6 @@ export default function LoginPage() {
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  // Estado para el nombre de la empresa
   const [companyName, setCompanyName] = useState("");
   
   const [error, setError] = useState<string | null>(null);
@@ -46,8 +46,6 @@ export default function LoginPage() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   
   const [isSignUp, setIsSignUp] = useState(false);
-
-  // NUEVO: Estados para recuperar contraseña
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [isResetSent, setIsResetSent] = useState(false);
 
@@ -111,22 +109,26 @@ export default function LoginPage() {
           return;
         }
 
-        const { error: signUpError } = await supabase.auth.signUp({ 
+        const { data: authData, error: signUpError } = await supabase.auth.signUp({ 
           email, 
           password 
         });
 
-        if (signUpError) {
-          setError(traducirError(signUpError.message));
+        if (signUpError || !authData.user) {
+          setError(traducirError(signUpError?.message || "Error al crear cuenta"));
           setIsLoading(false);
           return;
         }
 
+        // Llamamos a la función enviando explícitamente el ID y el correo para evitar errores de permisos
         const { error: rpcError } = await supabase.rpc("registrar_empresa_inicial", {
-          p_company_name: companyName.trim()
+          p_company_name: companyName.trim(),
+          p_user_id: authData.user.id,
+          p_email: authData.user.email
         });
 
         if (rpcError) {
+          console.error("Error RPC:", rpcError);
           setError("Cuenta creada, pero ocurrió un error al configurar la empresa.");
           setIsLoading(false);
           return;
@@ -210,7 +212,7 @@ export default function LoginPage() {
           </svg>
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white drop-shadow-sm">
-          Inventario TI
+          Inventario
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-300">
           {isForgotPassword 
@@ -224,7 +226,6 @@ export default function LoginPage() {
       <div className="relative z-10 mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl py-8 px-4 shadow-[0_8px_32px_0_rgba(31,38,135,0.1)] dark:shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] sm:rounded-3xl sm:px-10 border border-white/60 dark:border-gray-700/50 transition-all duration-300">
           
-          {/* Mensaje de Éxito al enviar el enlace */}
           {isResetSent ? (
             <div className="text-center animate-fade-in space-y-4">
               <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/30">
@@ -250,7 +251,6 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {/* Renderizado Condicional del Nombre de la Empresa */}
               {!isForgotPassword && isSignUp && (
                 <div className="animate-fade-in">
                   <label htmlFor="companyName" className="block text-sm font-medium text-gray-800 dark:text-gray-200">
@@ -348,7 +348,6 @@ export default function LoginPage() {
             </form>
           )}
 
-          {/* Opciones Adicionales y SSO */}
           {!isForgotPassword && !isResetSent && (
             <>
               <div className="relative my-6 animate-fade-in">
@@ -403,6 +402,19 @@ export default function LoginPage() {
             </button>
           </div>
         </div>
+
+        {/* NUEVO PIE DE PÁGINA CON ENLACES LEGALES */}
+        <div className="mt-8 text-center text-xs text-gray-500 dark:text-gray-400">
+          Al iniciar sesión o registrarte, aceptas nuestros{" "}
+          <Link href="/terminos" className="font-bold underline hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+            Términos y Condiciones
+          </Link>{" "}
+          y las{" "}
+          <Link href="/politicas" className="font-bold underline hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+            Políticas de Privacidad
+          </Link>.
+        </div>
+
       </div>
     </div>
   );
