@@ -13,9 +13,11 @@ export const config = {
      * - _next/static (archivos estáticos de Next.js)
      * - _next/image (imágenes optimizadas)
      * - favicon.ico (ícono del sitio)
+     * - auth (Permite el flujo de Google OAuth y sus callbacks sin bloqueos)
+     * - La página de inicio (raíz exacta mediante |$)
      * - terminos y politicas (páginas legales públicas)
      * - Imágenes estáticas (.svg, .png, .jpg, etc.)
      */
-    '/((?!_next/static|_next/image|favicon.ico|terminos|politicas|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|auth|terminos|politicas|$|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
