@@ -36,7 +36,7 @@ export default function TerminosPage() {
             <ul className="list-disc pl-5 space-y-2">
               <li><strong>Veracidad:</strong> Eres responsable de mantener actualizada la información de tu cuenta.</li>
               <li><strong>Seguridad:</strong> Eres responsable de salvaguardar tu contraseña y de cualquier actividad en tu cuenta.</li>
-              <li><strong>Roles:</strong> El mal uso de los privilegios de "Superadmin" o "Técnico" es responsabilidad exclusiva de la organización que gestiona el entorno.</li>
+              <li><strong>Roles:</strong> El mal uso de los privilegios de &quot;Superadmin&quot; o &quot;Técnico&quot; es responsabilidad exclusiva de la organización que gestiona el entorno.</li>
             </ul>
 
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mt-8 mb-3">3. Uso Aceptable</h3>
@@ -48,7 +48,7 @@ export default function TerminosPage() {
 
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mt-8 mb-3">4. Limitación de Responsabilidad</h3>
             <p>
-              El Servicio se proporciona "tal cual" y "según disponibilidad". No garantizamos que el servicio será ininterrumpido o libre de errores al 100%. No seremos responsables por pérdidas de datos derivadas del uso de la Plataforma.
+              El Servicio se proporciona &quot;tal cual&quot; y &quot;según disponibilidad&quot;. No garantizamos que el servicio será ininterrumpido o libre de errores al 100%. No seremos responsables por pérdidas de datos derivadas del uso de la Plataforma.
             </p>
           </div>
         </div>
