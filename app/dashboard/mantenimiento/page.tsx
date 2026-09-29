@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { sanitizeInput } from "@/utils/sanitize";
@@ -29,23 +30,27 @@ interface AlertState {
   type: "error" | "success" | "warning";
 }
 
-export default function MantenimientoPage() {
+// 1. COMPONENTE PRINCIPAL CON LA LÓGICA (Requiere estar dentro de Suspense)
+function MantenimientoContent() {
+  const searchParams = useSearchParams();
+  const urlAssetId = searchParams.get("asset_id") || "";
+
   const supabase = createClient();
 
   const [logs, setLogs] = useState<MaintenanceLog[]>([]);
   const [assets, setAssets] = useState<AssetOption[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Modales y formularios
-  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  // Modales y formularios (Si hay un asset_id en la URL, abrimos el modal de inmediato)
+  const [isReportModalOpen, setIsReportModalOpen] = useState(!!urlAssetId);
   const [selectedLogForResolve, setSelectedLogForResolve] = useState<MaintenanceLog | null>(null);
   const [alertData, setAlertData] = useState<AlertState | null>(null);
   
   // P0.4: Modal de confirmación para Baja Definitiva en Mantenimiento
   const [isConfirmBajaOpen, setIsConfirmBajaOpen] = useState(false);
 
-  // Formulario Reportar
-  const [selectedAssetId, setSelectedAssetId] = useState("");
+  // Formulario Reportar (Pre-cargamos el ID de la URL si existe)
+  const [selectedAssetId, setSelectedAssetId] = useState(urlAssetId);
   const [issueDescription, setIssueDescription] = useState("");
   const [estimatedCost, setEstimatedCost] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -127,6 +132,11 @@ export default function MantenimientoPage() {
       });
       setIsSubmitting(false);
       return;
+    }
+
+    // Limpiar también la URL si venía de un parámetro
+    if (urlAssetId) {
+      window.history.replaceState({}, '', '/dashboard/mantenimiento');
     }
 
     setSelectedAssetId("");
@@ -602,6 +612,19 @@ export default function MantenimientoPage() {
       )}
 
     </div>
+  );
+}
+
+// 2. ENVOLTORIO SUSPENSE PARA EL APP ROUTER
+export default function MantenimientoPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex justify-center items-center h-64 w-full">
+        <div className="animate-spin h-8 w-8 border-4 border-blue-500 rounded-full border-t-transparent"></div>
+      </div>
+    }>
+      <MantenimientoContent />
+    </Suspense>
   );
 }
 
