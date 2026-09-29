@@ -24,7 +24,7 @@ export default function PrivacidadPage() {
 
           <div className="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 space-y-6">
             <p>
-              En <strong>Inventario TI</strong> (en adelante, "nosotros", "la Plataforma" o "el Servicio"), valoramos y respetamos tu privacidad. Esta Política describe cómo recopilamos, utilizamos, almacenamos y protegemos tu información personal al utilizar nuestra aplicación web de gestión de activos.
+              En <strong>Inventario TI</strong> (en adelante, &quot;nosotros&quot;, &quot;la Plataforma&quot; o &quot;el Servicio&quot;), valoramos y respetamos tu privacidad. Esta Política describe cómo recopilamos, utilizamos, almacenamos y protegemos tu información personal al utilizar nuestra aplicación web de gestión de activos.
             </p>
 
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mt-8 mb-3">1. Información que recopilamos</h3>
