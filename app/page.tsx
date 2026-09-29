@@ -17,7 +17,7 @@ export default function LandingPage() {
       </header>
 
       {/* Hero Section (Lo que lee Google) */}
-      <main className="flex-grow flex flex-col items-center justify-center text-center px-4 sm:px-6 lg:px-8 py-20">
+      <main className="grow flex flex-col items-center justify-center text-center px-4 sm:px-6 lg:px-8 py-20">
         <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 dark:text-white tracking-tight mb-6">
           Gestión Inteligente de <span className="text-blue-600 dark:text-blue-400">Activos Tecnológicos</span>
         </h1>
