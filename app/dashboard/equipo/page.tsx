@@ -15,15 +15,20 @@ export default async function EquipoPage() {
     redirect("/login");
   }
 
-  // 2. Obtener el client_id del usuario actual
+  // 2. Obtener el client_id y el role del usuario actual
   const { data: currentUserProfile } = await supabase
     .from("profiles")
-    .select("client_id")
+    .select("client_id, role")
     .eq("id", user.id)
     .single();
 
   if (!currentUserProfile?.client_id) {
     // Si no tiene empresa, lo mandamos al inicio
+    redirect("/dashboard");
+  }
+
+  // 🔥 BLOQUEO DE SEGURIDAD POR ROL EN EL SERVIDOR 🔥
+  if (currentUserProfile.role !== "superadmin") {
     redirect("/dashboard");
   }
 
